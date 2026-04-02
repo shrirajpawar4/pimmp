@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PIMPP</title>
+    <style>
+      :root {
+        --bg: #040404;
+        --panel: #0b0b0b;
+        --panel-2: #101010;
+        --line: #1d1d1d;
+        --text: #f2fff6;
+        --muted: #8ca693;
+        --accent: #00ff88;
+        --accent-dim: #0a3d24;
+      }
+
+      * { box-sizing: border-box; }
+
+      html { scroll-behavior: smooth; }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 16px/1.55 "JetBrains Mono", "Geist Mono", monospace;
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      code, pre {
+        font: inherit;
+      }
+
+      .shell {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 24px 20px 80px;
+      }
+
+      .nav {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        padding: 12px 0 28px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .brand {
+        font-weight: 800;
+        letter-spacing: 0.14em;
+      }
+
+      .nav-links {
+        display: flex;
+        gap: 18px;
+        flex-wrap: wrap;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 24px;
+        padding: 44px 0 28px;
+        align-items: start;
+      }
+
+      .eyebrow, .kicker {
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 13px;
+      }
+
+      h1, h2, h3, p {
+        margin: 0;
+      }
+
+      h1 {
+        margin-top: 8px;
+        font-size: clamp(42px, 8vw, 92px);
+        line-height: 0.94;
+        text-transform: uppercase;
+      }
+
+      .hero-copy p {
+        margin-top: 18px;
+        max-width: 44rem;
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 26px;
+      }
+
+      .button {
+        display: inline-block;
+        border: 1px solid var(--accent);
+        padding: 12px 16px;
+      }
+
+      .button.primary {
+        color: #031109;
+        background: var(--accent);
+        font-weight: 700;
+      }
+
+      .terminal, .panel, .code-card, .flow-step {
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .terminal {
+        padding: 16px;
+      }
+
+      .terminal-head {
+        color: var(--muted);
+        margin-bottom: 14px;
+      }
+
+      .terminal pre {
+        margin: 0;
+        white-space: pre-wrap;
+        color: var(--accent);
+      }
+
+      .section {
+        padding-top: 44px;
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: 0.7fr 1.3fr;
+        gap: 24px;
+        margin-bottom: 18px;
+      }
+
+      .section-head p {
+        color: var(--muted);
+      }
+
+      .grid-3, .grid-2, .flow-grid {
+        display: grid;
+        gap: 16px;
+      }
+
+      .grid-3 {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .grid-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .flow-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .panel, .flow-step, .code-card {
+        padding: 18px;
+      }
+
+      .panel p, .flow-step p, .code-card p {
+        margin-top: 10px;
+        color: var(--muted);
+      }
+
+      .mini {
+        margin-top: 10px;
+        color: var(--accent);
+        font-size: 13px;
+      }
+
+      .code-card pre {
+        margin: 14px 0 0;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        color: var(--accent);
+      }
+
+      .register {
+        display: grid;
+        grid-template-columns: 1fr 0.92fr;
+        gap: 16px;
+      }
+
+      form {
+        display: grid;
+        gap: 12px;
+      }
+
+      input, textarea, button {
+        width: 100%;
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--line);
+        padding: 12px 14px;
+        font: inherit;
+      }
+
+      textarea {
+        min-height: 92px;
+        resize: vertical;
+      }
+
+      button {
+        background: var(--accent);
+        color: #031109;
+        border-color: var(--accent);
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      #result {
+        min-height: 100%;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .footer {
+        margin-top: 56px;
+        padding-top: 18px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        color: var(--muted);
+      }
+
+      @media (max-width: 920px) {
+        .hero,
+        .section-head,
+        .register,
+        .grid-3,
+        .grid-2,
+        .flow-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .nav {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="nav">
+        <div class="brand">PIMPP</div>
+        <nav class="nav-links">
+          <a href="#why">Why Proxy</a>
+          <a href="#how">How It Works</a>
+          <a href="#integrate">Integrate</a>
+          <a href="#cli">CLI</a>
+          <a href="#register">Register</a>
+        </nav>
+      </header>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow">Proxied Implementation of Machine Payments Protocol</div>
+          <h1>Agents pay.<br />Origins stay blind.</h1>
+          <p>
+            PIMPP is the proxy-first payment method for HTTP APIs. Wrap any endpoint with
+            an MPP-native <code>402</code> gate, settle in USDC on Base, and keep the origin
+            API unchanged.
+          </p>
+          <div class="hero-actions">
+            <a class="button primary" href="#register">Get Started</a>
+            <a class="button" href="#how">How It Works</a>
+          </div>
+        </div>
+
+        <aside class="terminal">
+          <div class="terminal-head">agent + pimpp</div>
+          <pre>GET /p/weather-pro/data?q=london
+→ 402 Payment Required
+
+Authorization: Payment base64url({
+  challenge,
+  payload: { txid: "0x..." }
+})
+
+→ 200 OK
+Payment-Receipt: base64url({...})</pre>
+        </aside>
+      </section>
+
+      <section id="why" class="section">
+        <div class="section-head">
+          <div class="kicker">Why proxy</div>
+          <div>
+            <h2>Monetize existing APIs without rebuilding them.</h2>
+            <p>
+              PIMPP is not a new API framework. It is a transparent payment layer in front of
+              the APIs people already run. Fast settlement on Base, exact-price verification,
+              and no origin changes.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-3">
+          <article class="panel">
+            <h3>No origin rewrite</h3>
+            <p>Keep your existing HTTP API. Register the upstream URL and share the paid proxy URL.</p>
+            <div class="mini">proxy instead of rebuild</div>
+          </article>
+          <article class="panel">
+            <h3>Faster than shielded rails</h3>
+            <p>Base + USDC gives a simpler, cheaper, faster payment path for machine-to-machine calls.</p>
+            <div class="mini">built for speed, not privacy</div>
+          </article>
+          <article class="panel">
+            <h3>MPP-native UX</h3>
+            <p>Clients still get the familiar <code>402 → pay → retry</code> flow with receipts and reusable tooling.</p>
+            <div class="mini">protocol-shaped, proxy-first</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="how" class="section">
+        <div class="section-head">
+          <div class="kicker">How it works</div>
+          <div>
+            <h2>HTTP 402. USDC underneath.</h2>
+            <p>
+              Standard MPP flow on the outside. Exact USDC transfer verification on Base on the
+              inside. The upstream API only sees a normal forwarded request.
+            </p>
+          </div>
+        </div>
+
+        <div class="flow-grid">
+          <article class="flow-step">
+            <h3>1. Agent requests</h3>
+            <p>Client calls the proxied endpoint with no payment credential.</p>
+            <div class="mini">GET /p/:id/resource</div>
+          </article>
+          <article class="flow-step">
+            <h3>2. Proxy challenges</h3>
+            <p>PIMPP returns <code>402 Payment Required</code> and a strict MPP challenge.</p>
+            <div class="mini">WWW-Authenticate: Payment ...</div>
+          </article>
+          <article class="flow-step">
+            <h3>3. Client pays</h3>
+            <p>The client sends a USDC transfer on Base and retries with a payment credential.</p>
+            <div class="mini">payload: { txid }</div>
+          </article>
+          <article class="flow-step">
+            <h3>4. Proxy verifies</h3>
+            <p>PIMPP verifies amount, recipient, challenge state, and replay protection, then forwards upstream.</p>
+            <div class="mini">200 OK + Payment-Receipt</div>
+          </article>
+        </div>
+      </section>
+
+      <section id="integrate" class="section">
+        <div class="section-head">
+          <div class="kicker">Integrate</div>
+          <div>
+            <h2>Register an API or pay any compatible endpoint.</h2>
+            <p>
+              The product should integrate the way zimppy integrates: hosted proxy, reusable
+              payment package, and a CLI path for immediate use.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <article class="code-card">
+            <h3>Server / Provider</h3>
+            <p>Register a base endpoint and receive a paid proxy URL.</p>
+            <pre>POST /register
+{
+  "originUrl": "https://api.example.com/v1",
+  "priceUsdc": "0.01",
+  "destinationWallet": "0x..."
+}
+
+→ { "proxiedUrl": "https://pimpp.fun/p/abc123" }</pre>
+          </article>
+
+          <article class="code-card">
+            <h3>Client / SDK</h3>
+            <p>Use <code>mppx</code> with the reusable USDC-on-Base method.</p>
+            <pre>import { Mppx } from 'mppx/client'
+import { usdcBaseClient } from '@pimpp/usdc-base'
+
+const mppx = Mppx.create({
+  methods: [usdcBaseClient({ privateKey, rpcUrl })],
+  polyfill: false,
+})
+
+const res = await mppx.fetch(url)</pre>
+          </article>
+        </div>
+      </section>
+
+      <section id="cli" class="section">
+        <div class="section-head">
+          <div class="kicker">CLI</div>
+          <div>
+            <h2><code>npx pimpp</code></h2>
+            <p>
+              One command to pay any compatible USDC-on-Base MPP endpoint. That is the key
+              distribution surface, not just the hosted proxy.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <article class="code-card">
+            <h3>Request</h3>
+            <pre>$ npx pimpp request https://pimpp.fun/p/abc123/weather?q=London
+
+402 discovery
+USDC payment on Base
+retry with credential
+response body printed</pre>
+          </article>
+          <article class="code-card">
+            <h3>Wallet identity</h3>
+            <pre>$ npx pimpp wallet whoami
+
+0x742d35Cc6634...
+network: base
+mode: env private key</pre>
+          </article>
+        </div>
+      </section>
+
+      <section id="register" class="section">
+        <div class="section-head">
+          <div class="kicker">Register</div>
+          <div>
+            <h2>Wrap an endpoint now.</h2>
+            <p>
+              This is the whole product surface for providers: point at an upstream, set a
+              price, add a wallet, and get back a paid URL.
+            </p>
+          </div>
+        </div>
+
+        <div class="register">
+          <section class="panel">
+            <form id="register-form">
+              <input name="originUrl" placeholder="https://api.example.com/v1" required />
+              <input name="priceUsdc" placeholder="0.01" required />
+              <input name="destinationWallet" placeholder="0x..." required />
+              <textarea name="upstreamHeaders" placeholder='Optional JSON headers, e.g. {"x-api-key":"secret"}'></textarea>
+              <textarea name="upstreamQuery" placeholder='Optional JSON query params, e.g. {"api_key":"secret"}'></textarea>
+              <button type="submit">Wrap It</button>
+            </form>
+          </section>
+
+          <aside id="result" class="panel">Your URL will appear here.</aside>
+        </div>
+      </section>
+
+      <footer class="footer">
+        <div>PIMPP</div>
+        <div>Proxy implementation of machine payments protocol.</div>
+      </footer>
+    </main>
+
+    <script>
+      const form = document.getElementById('register-form');
+      const result = document.getElementById('result');
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const data = new FormData(form);
+
+        const parseJson = (value) => {
+          if (!value) return undefined;
+          return JSON.parse(value);
+        };
+
+        try {
+          const response = await fetch('/register', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              originUrl: data.get('originUrl'),
+              priceUsdc: data.get('priceUsdc'),
+              destinationWallet: data.get('destinationWallet'),
+              upstreamHeaders: parseJson(data.get('upstreamHeaders')),
+              upstreamQuery: parseJson(data.get('upstreamQuery')),
+            }),
+          });
+
+          result.textContent = JSON.stringify(await response.json(), null, 2);
+        } catch (error) {
+          result.textContent = String(error);
+        }
+      });
+    </script>
+  </body>
+</html>

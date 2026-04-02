@@ -1,0 +1,29 @@
+{
+  "name": "pimpp",
+  "version": "0.1.0",
+  "description": "CLI for MPP-compatible USDC-on-Base endpoints and pimpp proxies.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "pimpp": "./src/cli.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/pimpp.git",
+    "directory": "packages/pimpp-cli"
+  },
+  "keywords": [
+    "mpp",
+    "cli",
+    "usdc",
+    "base"
+  ],
+  "dependencies": {
+    "@pimpp/usdc-base": "^0.1.0",
+    "mppx": "^0.4.8",
+    "viem": "^2.28.0"
+  }
+}

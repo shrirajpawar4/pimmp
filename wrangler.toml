@@ -1,0 +1,11 @@
+name = "pimpp"
+main = "src/index.ts"
+compatibility_date = "2026-04-02"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "ENDPOINTS"
+id = "replace-me"
