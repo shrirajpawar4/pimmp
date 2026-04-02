@@ -1,144 +1,71 @@
 # pimpp
 
-Proxied Implementation of Machine Payments.
+**Turn any API into a paid API.**
 
-Transparent MPP payment proxy for HTTP APIs.
-No account. No Stripe. USDC on Base.
+PIMPP puts a paid proxy in front of an existing HTTP API.
+Clients get a standard `402 Payment Required` flow, pay in USDC on Base, and PIMPP forwards the request to your upstream.
 
-## What this repo contains
+Your API stays the same.
 
-- Cloudflare Worker proxy for wrapping any HTTP API in an MPP `402` payment flow
-- reusable `@pimpp/usdc-base` package built on `mppx`
-- `pimpp` CLI for `402 -> pay -> retry`
+## Why this exists
 
-This is the fast, cheap, proxy-first counterpart to `zimppy`:
-- same integration style
-- no privacy rail
-- Base mainnet + USDC
-- one-shot charges in v1
+Charging for an API should not require rebuilding the API.
 
-## How it works
+PIMPP is for the simple case:
 
-1. An API owner registers an upstream endpoint, price, and payout wallet.
-2. The owner shares the proxied URL instead of the raw origin.
-3. A client calls that URL and gets `402 Payment Required`.
-4. A compatible MPP client pays USDC on Base and retries with `Authorization: Payment ...`.
-5. The proxy verifies the transaction and forwards the request upstream.
+- you already have an HTTP endpoint
+- you want to charge per request
+- you do not want to rewrite the origin
+- you want agents and normal clients to use the same paid URL
 
-The origin API does not need to know anything about MPP.
-
-## Quickstart
-
-### 1. Install
+## Install
 
 ```bash
 npm install
 ```
 
-### 2. Configure env
+## How one paid request works
 
-Copy `.env.example` and fill in real values:
+```text
+Client  ->  GET /p/abc123/weather?q=London
+PIMPP   ->  402 Payment Required + payment details
+Client  ->  pay in USDC on Base
+Client  ->  retry with payment proof
+PIMPP   ->  verify payment, forward upstream
+Origin  ->  200 OK
+PIMPP   ->  200 OK + Payment-Receipt
+```
+
+## What is included
+
+- Cloudflare Worker proxy for paid HTTP endpoints
+- `@pimpp/usdc-base` payment method for USDC on Base
+- `pimpp` CLI for registration and `402 -> pay -> retry`
+- agent demo showing how to call a paid endpoint from a tool
+
+## Register an endpoint
 
 ```bash
-cp .env.example .env
+npx tsx packages/pimpp-cli/src/cli.ts register \
+  http://127.0.0.1:8787 \
+  https://api.example.com/v1 \
+  0.01 \
+  0x742d35Cc6634c0532925a3b844Bc454e4438f44e
 ```
 
-Required values:
+With upstream auth kept on the proxy:
 
 ```bash
-PIMP_SECRET=
-PIMP_DATA_KEY=
-BASE_RPC_URL=
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
-PIMP_PRIVATE_KEY=
+npx tsx packages/pimpp-cli/src/cli.ts register \
+  http://127.0.0.1:8787 \
+  https://api.example.com/v1 \
+  0.01 \
+  0x742d35Cc6634c0532925a3b844Bc454e4438f44e \
+  --upstream-header x-api-key=secret \
+  --upstream-query account_id=demo
 ```
 
-Notes:
-- `PIMP_SECRET` is used by `mppx` to bind challenges.
-- `PIMP_DATA_KEY` must be a base64-encoded 32-byte AES key.
-- `PIMP_PRIVATE_KEY` is only needed for CLI payment flows.
-
-Generate sane local values:
-
-```bash
-openssl rand -hex 32
-openssl rand -base64 32
-```
-
-### 3. Configure Wrangler
-
-Edit [wrangler.toml](/Users/shree/projects/pimmp/wrangler.toml):
-- replace the placeholder KV namespace id
-- add any production bindings you want before deploy
-
-### 4. Run locally
-
-```bash
-npm run dev
-```
-
-## Local test flow
-
-### Register an endpoint
-
-```bash
-curl -X POST http://127.0.0.1:8787/register \
-  -H 'content-type: application/json' \
-  -d '{
-    "originUrl": "https://httpbin.org/anything",
-    "priceUsdc": "0.01",
-    "destinationWallet": "0x742d35Cc6634c0532925a3b844Bc454e4438f44e"
-  }'
-```
-
-Optional upstream auth can be stored server-side:
-
-```json
-{
-  "upstreamHeaders": { "x-api-key": "secret" },
-  "upstreamQuery": { "api_key": "secret" }
-}
-```
-
-### Confirm the unpaid challenge
-
-```bash
-curl -i http://127.0.0.1:8787/p/<id>/demo
-```
-
-Expected:
-- status `402`
-- `WWW-Authenticate: Payment ...`
-
-### Pay and retry with the CLI
-
-```bash
-PIMP_PRIVATE_KEY=0x... \
-BASE_RPC_URL=https://mainnet.base.org \
-node packages/pimpp-cli/src/cli.ts request "http://127.0.0.1:8787/p/<id>/demo"
-```
-
-### Check endpoint status
-
-```bash
-curl http://127.0.0.1:8787/p/<id>/status
-```
-
-## Provider integration
-
-API owners integrate by registering an endpoint:
-
-```bash
-POST /register
-{
-  "originUrl": "https://api.example.com/v1",
-  "priceUsdc": "0.01",
-  "destinationWallet": "0x..."
-}
-```
-
-Response:
+PIMPP returns a paid proxy URL like:
 
 ```json
 {
@@ -148,17 +75,18 @@ Response:
 }
 ```
 
-No origin-side code changes are required.
-
-## Client integration
+## Client
 
 ### CLI
 
 ```bash
-npx pimpp request https://pimpp.fun/p/abc123/weather?q=London
+PIMP_PRIVATE_KEY=0x... \
+BASE_RPC_URL=https://mainnet.base.org \
+npx tsx packages/pimpp-cli/src/cli.ts request \
+  "https://pimpp.fun/p/abc123/weather?q=London"
 ```
 
-### SDK
+### TypeScript
 
 ```ts
 import { Mppx } from 'mppx/client'
@@ -178,42 +106,115 @@ const response = await mppx.fetch('https://pimpp.fun/p/abc123/weather?q=London')
 console.log(await response.text())
 ```
 
-## Development
+## Server
+
+Worker routes:
+
+- `/.well-known/payment`
+- `POST /register`
+- `GET /p/:id/status`
+- `ALL /p/:id/*`
+
+`GET /` returns a small service description:
+
+```json
+{
+  "name": "pimpp",
+  "description": "Transparent MPP payment proxy for HTTP APIs using USDC on Base."
+}
+```
+
+## Agent use
+
+The model should not reason about the payment flow directly.
+
+The clean pattern is:
+
+1. make the PIMPP URL a tool
+2. let the tool call the paid endpoint
+3. let `mppx` handle `402 -> pay -> retry`
+4. return only the upstream result to the model
+
+Runnable demo:
+
+```bash
+PIMP_PRIVATE_KEY=0x... \
+BASE_RPC_URL=https://mainnet.base.org \
+npx tsx examples/agent-tool-demo.ts \
+  "http://127.0.0.1:8787/p/<id>/tools/weather" \
+  "What is the weather in London"
+```
+
+## Local development
+
+### Env
+
+Copy `.env.example` and fill in:
+
+```bash
+cp .env.example .env
+```
+
+Required values:
+
+```bash
+PIMP_SECRET=
+PIMP_DATA_KEY=
+BASE_RPC_URL=
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+PIMP_PRIVATE_KEY=
+```
+
+Generate local values:
+
+```bash
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+### Run
+
+```bash
+npm run dev
+```
+
+### Checks
 
 ```bash
 npm run typecheck
 npm test
 ```
 
-CI runs both checks on every push and pull request via GitHub Actions.
+## Architecture
 
-## Security model
+```text
+src/
+  index.ts          Worker entrypoint
+  proxy.ts          402, verify, forward flow
+  registry.ts       endpoint registration and validation
+  payment.ts        payment challenge and verification helpers
+  replay.ts         replay protection
+packages/
+  pimpp-cli/        CLI for register, request, wallet whoami
+  usdc-base/        USDC-on-Base payment method for mppx
+examples/
+  agent-tool-demo.ts
+```
 
-- replay protection uses Upstash Redis with `spent:{txid}` keys
-- short-lived challenge state uses Redis with `challenge:{id}` keys
-- upstream secret headers/query params are encrypted before KV storage
-- the proxy strips `Authorization` before forwarding to the origin
-- SSRF mitigation currently blocks obvious localhost/private/link-local targets
+## Current scope
 
-## Current limits
+- one-shot charge flow
+- no sessions yet
+- no streaming yet
+- upstreams must be internet reachable
 
-- v1 is one-shot only: one Base USDC transfer per paid request
-- no sessions or streaming yet
-- no fee collection yet
-- SSRF protection is hostname/IP based, not full DNS rebinding protection
-- no auth on endpoint registration in v1
+## Security notes
 
-## Before going public
-
-Replace these placeholders first:
-- GitHub URLs in `package.json` files
-- `wrangler.toml` KV namespace id
-- any example wallet addresses you do not want public-facing
-
-Recommended before the tweet:
-- add a real deploy URL to this README
-- record a 30-second demo clip of register -> 402 -> pay -> response
-- test one public upstream and one secret-bearing upstream
+- upstream auth data is encrypted before storage
+- replay protection uses Redis-backed transaction tracking
+- `Authorization` is stripped before forwarding upstream
+- obvious localhost and private-network targets are blocked
 
 ## License
 

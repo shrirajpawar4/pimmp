@@ -19,6 +19,7 @@
   ],
   "scripts": {
     "dev": "wrangler dev",
+    "demo:agent": "tsx examples/agent-tool-demo.ts",
     "demo:upstream": "tsx scripts/demo-upstream.ts",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit --project tsconfig.json",
