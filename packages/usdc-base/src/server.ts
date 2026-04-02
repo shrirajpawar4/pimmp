@@ -11,6 +11,9 @@ import {
   usdcBaseMethod,
 } from './shared.js'
 
+const CONFIRMATION_POLL_INTERVAL_MS = 1_000
+const CONFIRMATION_POLL_ATTEMPTS = 10
+
 export type UsdcBaseServerOptions = {
   rpcUrl?: string
   verifyTransfer?: VerifyTransferFn
@@ -80,7 +83,16 @@ export async function verifyTransferWithRpc(parameters: {
     return { txid, valid: false }
   }
 
-  const currentBlock = await client.getBlockNumber()
+  let currentBlock = await client.getBlockNumber()
+  for (
+    let attempt = 0;
+    currentBlock - receipt.blockNumber < 1n && attempt < CONFIRMATION_POLL_ATTEMPTS;
+    attempt += 1
+  ) {
+    await delay(CONFIRMATION_POLL_INTERVAL_MS)
+    currentBlock = await client.getBlockNumber()
+  }
+
   if (currentBlock - receipt.blockNumber < 1n) {
     return { txid, valid: false }
   }
@@ -96,4 +108,8 @@ export async function verifyTransferWithRpc(parameters: {
     txid,
     valid: matched.matches,
   }
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

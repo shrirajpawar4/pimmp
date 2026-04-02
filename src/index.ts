@@ -7,7 +7,18 @@ import type { Bindings, RegisterEndpointInput } from './types.js'
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-app.get('/', async (c) => c.env.ASSETS.fetch(new URL('/index.html', c.req.url)))
+app.get('/', (c) =>
+  c.json({
+    name: 'pimpp',
+    description: 'Transparent MPP payment proxy for HTTP APIs using USDC on Base.',
+    endpoints: {
+      paymentMethod: '/.well-known/payment',
+      register: '/register',
+      proxy: '/p/:id/*',
+      status: '/p/:id/status',
+    },
+  }),
+)
 
 app.get('/.well-known/payment', (c) =>
   c.json({

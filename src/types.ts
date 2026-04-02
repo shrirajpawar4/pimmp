@@ -41,7 +41,6 @@ export type ChallengeState = {
 }
 
 export type Bindings = {
-  ASSETS: Fetcher
   BASE_RPC_URL: string
   ENDPOINTS: KVNamespace
   PIMP_DATA_KEY: string
