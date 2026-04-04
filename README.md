@@ -48,30 +48,53 @@ PIMPP   ->  200 OK + Payment-Receipt
 ```bash
 npx tsx packages/pimpp-cli/src/cli.ts register \
   http://127.0.0.1:8787 \
-  https://api.example.com/v1 \
-  0.01 \
-  0x742d35Cc6634c0532925a3b844Bc454e4438f44e
+  https://api.openai.com/v1 \
+  --template openai \
+  --price 0.01 \
+  --auth-header authorization="Bearer $OPENAI_API_KEY"
 ```
 
-With upstream auth kept on the proxy:
+With explicit per-route prices:
 
 ```bash
 npx tsx packages/pimpp-cli/src/cli.ts register \
   http://127.0.0.1:8787 \
-  https://api.example.com/v1 \
-  0.01 \
-  0x742d35Cc6634c0532925a3b844Bc454e4438f44e \
-  --upstream-header x-api-key=secret \
-  --upstream-query account_id=demo
+  https://api.github.com \
+  --template github-rest \
+  --price 0.01 \
+  --route /search/issues=0.03 \
+  --auth-header authorization="Bearer $GITHUB_TOKEN"
 ```
 
-PIMPP returns a paid proxy URL like:
+PIMPP returns a paid proxy base URL plus concrete paid route URLs:
 
 ```json
 {
   "id": "abc123",
-  "proxiedUrl": "https://pimpp.fun/p/abc123",
-  "instructions": "Call the proxied URL. Unpaid requests receive a 402 MPP challenge."
+  "proxiedBaseUrl": "https://pimpp.fun/p/abc123",
+  "proxiedRoutes": {
+    "/chat/completions": "https://pimpp.fun/p/abc123/chat/completions",
+    "/embeddings": "https://pimpp.fun/p/abc123/embeddings",
+    "/responses": "https://pimpp.fun/p/abc123/responses"
+  },
+  "instructions": "Call one of the proxied URLs. Unpaid requests receive a 402 MPP challenge."
+}
+```
+
+The `POST /register` body is now:
+
+```json
+{
+  "baseUrl": "https://api.example.com/v1",
+  "authHeader": {
+    "name": "authorization",
+    "value": "Bearer secret"
+  },
+  "routePricesUsdc": {
+    "/search": "0.01",
+    "/summarize": "0.02",
+    "/export": "0.05"
+  }
 }
 ```
 
@@ -111,6 +134,7 @@ console.log(await response.text())
 Worker routes:
 
 - `/.well-known/payment`
+- `GET /templates`
 - `POST /register`
 - `GET /p/:id/status`
 - `ALL /p/:id/*`
@@ -121,6 +145,29 @@ Worker routes:
 {
   "name": "pimpp",
   "description": "Transparent MPP payment proxy for HTTP APIs using USDC on Base."
+}
+```
+
+`GET /templates` returns the built-in registration presets:
+
+```json
+{
+  "templates": [
+    {
+      "id": "openai",
+      "label": "OpenAI-Compatible Proxy",
+      "baseUrlExample": "https://api.openai.com/v1",
+      "authHeaderName": "authorization",
+      "routes": ["/chat/completions", "/embeddings", "/responses"]
+    },
+    {
+      "id": "github-rest",
+      "label": "GitHub REST Proxy",
+      "baseUrlExample": "https://api.github.com",
+      "authHeaderName": "authorization",
+      "routes": ["/user", "/search/issues", "/search/repositories"]
+    }
+  ]
 }
 ```
 
@@ -161,6 +208,7 @@ Required values:
 PIMP_SECRET=
 PIMP_DATA_KEY=
 BASE_RPC_URL=
+PIMP_DESTINATION_WALLET=
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 PIMP_PRIVATE_KEY=
@@ -207,6 +255,7 @@ examples/
 - one-shot charge flow
 - no sessions yet
 - no streaming yet
+- exact-path route pricing for registered paths
 - upstreams must be internet reachable
 
 ## Security notes

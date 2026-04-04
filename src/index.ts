@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { getEndpoint, registerEndpoint } from './registry.js'
 import { logDivider, logStage, logSuccess } from './log.js'
 import { handleProxyRequest } from './proxy.js'
+import { getProxyTemplates } from './templates/index.js'
 import type { Bindings, RegisterEndpointInput } from './types.js'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -16,7 +17,14 @@ app.get('/', (c) =>
       register: '/register',
       proxy: '/p/:id/*',
       status: '/p/:id/status',
+      templates: '/templates',
     },
+  }),
+)
+
+app.get('/templates', (c) =>
+  c.json({
+    templates: getProxyTemplates(),
   }),
 )
 
@@ -34,10 +42,10 @@ app.post('/register', async (c) => {
   try {
     const registered = await registerEndpoint(c.env, c.req.url, body)
     logDivider('endpoint registered')
-    logSuccess('REGISTER', `id=${registered.id} url=${registered.proxiedUrl}`)
+    logSuccess('REGISTER', `id=${registered.id} url=${registered.proxiedBaseUrl}`)
     return c.json({
       ...registered,
-      instructions: 'Call the proxied URL. Unpaid requests receive a 402 MPP challenge.',
+      instructions: 'Call one of the proxied URLs. Unpaid requests receive a 402 MPP challenge.',
     })
   } catch (error) {
     return c.json(
@@ -55,7 +63,9 @@ app.get('/p/:id/status', async (c) => {
     callCount: endpoint.callCount,
     createdAt: endpoint.createdAt,
     originHost: new URL(endpoint.originUrl).host,
-    priceAtomic: endpoint.priceAtomic,
+    ...(endpoint.routePricesAtomic
+      ? { routePricesAtomic: endpoint.routePricesAtomic }
+      : { priceAtomic: endpoint.priceAtomic }),
   })
 })
 

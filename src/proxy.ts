@@ -1,7 +1,7 @@
 import { Challenge } from 'mppx'
 
 import { logStage, logSuccess } from './log.js'
-import { incrementCallCount } from './registry.js'
+import { incrementCallCount, matchRoutePrice, normalizeRoutePath } from './registry.js'
 import { storeChallenge } from './replay.js'
 import type { Bindings, PimpEndpoint } from './types.js'
 import { createPaymentHandler } from './mpp.js'
@@ -13,12 +13,22 @@ export async function handleProxyRequest(
   suffix: string,
 ) {
   const url = new URL(request.url)
+  const routePath = normalizeRoutePath(suffix || '/')
+  const matchedRoute = matchRoutePrice(endpoint, routePath)
+  if (!matchedRoute) {
+    return new Response(JSON.stringify({ error: 'route not registered' }), {
+      status: 404,
+      headers: {
+        'content-type': 'application/json',
+      },
+    })
+  }
   const payment = createPaymentHandler(env, endpoint, url.host)
   const result = await payment.charge({
-    amount: endpoint.priceAtomic,
+    amount: matchedRoute.priceAtomic,
     currency: 'usdc',
     recipient: endpoint.destinationWallet,
-    description: `Proxy access for ${endpoint.id}`,
+    description: `Proxy access for ${endpoint.id}${matchedRoute.path}`,
     methodDetails: {
       chainId: 8453,
       network: 'base',
@@ -33,13 +43,14 @@ export async function handleProxyRequest(
       : Date.now() + 5 * 60 * 1000
     logStage(
       'CHALLENGE',
-      `issued id=${endpoint.id} challenge=${challenge.id} amount=${endpoint.priceAtomic}`,
+      `issued id=${endpoint.id} challenge=${challenge.id} route=${matchedRoute.path} amount=${matchedRoute.priceAtomic}`,
     )
     await storeChallenge(env, challenge.id, {
       endpointId: endpoint.id,
-      expectedAmount: endpoint.priceAtomic,
+      expectedAmount: matchedRoute.priceAtomic,
       expectedRecipient: endpoint.destinationWallet,
       expiresAt,
+      routePath: matchedRoute.path,
     })
     return result.challenge
   }
@@ -57,7 +68,7 @@ export async function handleProxyRequest(
   await incrementCallCount(env, endpoint)
   logSuccess(
     'RESPONSE',
-    `status=${upstreamResponse.status} id=${endpoint.id} upstream=${upstreamUrl}`,
+    `status=${upstreamResponse.status} id=${endpoint.id} route=${matchedRoute.path} upstream=${upstreamUrl}`,
   )
   return result.withReceipt(upstreamResponse)
 }

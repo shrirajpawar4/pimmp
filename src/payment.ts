@@ -2,6 +2,7 @@ import { verifyTransferWithRpc } from '@pimpp/usdc-base'
 import { getAddress, isAddressEqual } from 'viem'
 
 import { logError, logStage, logSuccess, logWarn } from './log.js'
+import { matchRoutePrice } from './registry.js'
 import { getChallenge, isSpent, markSpent } from './replay.js'
 import type { Bindings, PimpEndpoint } from './types.js'
 
@@ -38,8 +39,15 @@ export async function validateAndConsumePayment(parameters: {
     return { valid: false, error: 'challenge endpoint mismatch' }
   }
 
+  const matchedRoute = matchRoutePrice(endpoint, challenge.routePath)
+  if (!matchedRoute) {
+    logError('VERIFY', `missing route price id=${endpoint.id} route=${challenge.routePath}`)
+    return { valid: false, error: 'challenge route mismatch' }
+  }
+
   if (
-    challenge.expectedAmount !== endpoint.priceAtomic ||
+    challenge.routePath !== matchedRoute.path ||
+    challenge.expectedAmount !== matchedRoute.priceAtomic ||
     !isAddressEqual(getAddress(challenge.expectedRecipient), getAddress(endpoint.destinationWallet))
   ) {
     logError('VERIFY', `payment details mismatch id=${endpoint.id} txid=${txid}`)
@@ -49,7 +57,7 @@ export async function validateAndConsumePayment(parameters: {
   const result = await verifyTransferWithRpc({
     challengeId,
     request: {
-      amount: endpoint.priceAtomic,
+      amount: matchedRoute.priceAtomic,
       currency: 'usdc',
       recipient: endpoint.destinationWallet,
       methodDetails: {
@@ -70,7 +78,7 @@ export async function validateAndConsumePayment(parameters: {
   await markSpent(env, txid)
   logSuccess(
     'PAID',
-    `verified id=${endpoint.id} txid=${txid} amount=${endpoint.priceAtomic} recipient=${endpoint.destinationWallet}`,
+    `verified id=${endpoint.id} txid=${txid} route=${matchedRoute.path} amount=${matchedRoute.priceAtomic} recipient=${endpoint.destinationWallet}`,
   )
   return { valid: true }
 }

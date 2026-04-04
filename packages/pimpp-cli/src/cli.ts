@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 
 import { Mppx } from 'mppx/client'
+import { pathToFileURL } from 'node:url'
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { usdcBaseClient } from '@pimpp/usdc-base'
+import {
+  getProxyTemplate,
+  getProxyTemplates,
+  isProxyTemplateId,
+} from '../../../src/templates/index.js'
 
 function getEnv(name: string) {
   const value = process.env[name]
@@ -46,15 +52,9 @@ async function main() {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        destinationWallet: options.destinationWallet,
-        originUrl: options.originUrl,
-        priceUsdc: options.priceUsdc,
-        ...(Object.keys(options.upstreamHeaders).length
-          ? { upstreamHeaders: options.upstreamHeaders }
-          : {}),
-        ...(Object.keys(options.upstreamQuery).length
-          ? { upstreamQuery: options.upstreamQuery }
-          : {}),
+        baseUrl: options.baseUrl,
+        routePricesUsdc: options.routePricesUsdc,
+        ...(options.authHeader ? { authHeader: options.authHeader } : {}),
       }),
     })
 
@@ -78,58 +78,92 @@ async function main() {
   throw new Error(usage())
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
-  process.exit(1)
-})
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
+    process.exit(1)
+  })
+}
 
-function parseRegisterArgs(args: string[]) {
-  if (args.length < 4) {
+export function parseRegisterArgs(args: string[]) {
+  if (args.length < 2) {
     throw new Error(
-      'Usage: pimpp register <worker-url> <origin-url> <price-usdc> <destination-wallet> [--upstream-header name=value] [--upstream-query name=value]',
+      `Usage: pimpp register <worker-url> <base-url> [--template ${getTemplateUsageList()}] [--price usdc] [--route path=price] [--auth-header name=value]`,
     )
   }
 
-  const [workerUrl, originUrl, priceUsdc, destinationWallet, ...rest] = args
-  const upstreamHeaders: Record<string, string> = {}
-  const upstreamQuery: Record<string, string> = {}
+  const [workerUrl, baseUrl, ...rest] = args
+  const routePricesUsdc: Record<string, string> = {}
+  let authHeader: { name: string; value: string } | undefined
+  let template: string | undefined
+  let templatePriceUsdc: string | undefined
 
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index]
     const value = rest[index + 1]
-    if (flag !== '--upstream-header' && flag !== '--upstream-query') {
+    if (
+      flag !== '--auth-header' &&
+      flag !== '--price' &&
+      flag !== '--route' &&
+      flag !== '--template'
+    ) {
       throw new Error(`Unknown option: ${flag}`)
     }
     if (!value) {
       throw new Error(`Missing value for ${flag}`)
     }
 
-    const separator = value.indexOf('=')
-    if (separator === -1) {
-      throw new Error(`Expected name=value for ${flag}, received: ${value}`)
-    }
-
-    const name = value.slice(0, separator).trim()
-    const entryValue = value.slice(separator + 1).trim()
-    if (!name || !entryValue) {
-      throw new Error(`Expected name=value for ${flag}, received: ${value}`)
-    }
-
-    if (flag === '--upstream-header') {
-      upstreamHeaders[name] = entryValue
+    if (flag === '--template') {
+      if (!isProxyTemplateId(value)) {
+        throw new Error(`Unknown template: ${value}`)
+      }
+      template = value
+    } else if (flag === '--price') {
+      templatePriceUsdc = value
     } else {
-      upstreamQuery[name] = entryValue
+      const separator = value.indexOf('=')
+      if (separator === -1) {
+        throw new Error(`Expected name=value for ${flag}, received: ${value}`)
+      }
+
+      const name = value.slice(0, separator).trim()
+      const entryValue = value.slice(separator + 1).trim()
+      if (!name || !entryValue) {
+        throw new Error(`Expected name=value for ${flag}, received: ${value}`)
+      }
+
+      if (flag === '--auth-header') {
+        authHeader = { name, value: entryValue }
+      } else {
+        routePricesUsdc[name] = entryValue
+      }
     }
 
     index += 1
   }
 
+  if (template) {
+    const templateDefinition = getProxyTemplate(template)
+    if (!templateDefinition) {
+      throw new Error(`Unknown template: ${template}`)
+    }
+    const templateRoutes = templateDefinition.routes
+    if (!templatePriceUsdc && templateRoutes.some((path) => routePricesUsdc[path] === undefined)) {
+      throw new Error(`Template ${template} requires --price or explicit --route values for every route`)
+    }
+    for (const path of templateRoutes) {
+      routePricesUsdc[path] ??= templatePriceUsdc!
+    }
+  }
+
+  if (Object.keys(routePricesUsdc).length === 0) {
+    throw new Error('At least one --route or a --template with --price is required')
+  }
+
   return {
-    destinationWallet,
-    originUrl,
-    priceUsdc,
-    upstreamHeaders,
-    upstreamQuery,
+    authHeader,
+    baseUrl,
+    routePricesUsdc,
     workerUrl,
   }
 }
@@ -138,7 +172,13 @@ function usage() {
   return [
     'Usage:',
     '  pimpp request <url>',
-    '  pimpp register <worker-url> <origin-url> <price-usdc> <destination-wallet> [--upstream-header name=value] [--upstream-query name=value]',
+    `  pimpp register <worker-url> <base-url> [--template ${getTemplateUsageList()}] [--price usdc] [--route path=price] [--auth-header name=value]`,
     '  pimpp wallet whoami',
   ].join('\n')
+}
+
+function getTemplateUsageList() {
+  return getProxyTemplates()
+    .map((template) => template.id)
+    .join('|')
 }
