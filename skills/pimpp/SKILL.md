@@ -1,6 +1,6 @@
 ---
 name: pimpp
-description: Access any MPP/x402 service through the unified PIMPP gateway at pimpp.dev. Use when calling paid APIs like Dune, Exa, Firecrawl, Alchemy, Nansen, Perplexity, OpenAI, Anthropic, and 40+ other services via x402 payment protocol.
+description: Access any MPP/x402 service through the unified PIMPP gateway at api.pimpp.dev. Use when calling paid APIs like Dune, Exa, Firecrawl, Alchemy, Nansen, Perplexity, OpenAI, Anthropic, and 40+ other services via x402 payment protocol.
 ---
 
 # PIMPP Gateway Skill
@@ -11,22 +11,22 @@ Use this skill when an agent or tool should call an MPP/x402 service through the
 
 PIMPP exposes the live `mpp.dev` service registry through one gateway:
 
-- `GET https://pimpp.dev/gateway/services` for the JSON service catalog
-- `GET https://pimpp.dev/gateway/services/llms.txt` for a plaintext agent directory
-- `ALL https://pimpp.dev/g/<serviceId>/...` to proxy requests to the matching upstream service
+- `GET https://api.pimpp.dev/gateway/services` for the JSON service catalog
+- `GET https://api.pimpp.dev/gateway/services/llms.txt` for a plaintext agent directory
+- `ALL https://api.pimpp.dev/g/<serviceId>/...` to proxy requests to the matching upstream service
 
 PIMPP does not run a wallet server-side. It forwards requests as-is. If the upstream returns `402 Payment Required`, that `402` is passed back unchanged. The client wallet pays the upstream directly, retries through PIMPP, and PIMPP forwards the proof headers intact.
 
 ## Common gateway paths
 
-- OpenAI: `https://pimpp.dev/g/openai/...`
-- Anthropic: `https://pimpp.dev/g/anthropic/...`
-- Perplexity: `https://pimpp.dev/g/perplexity/...`
-- Exa: `https://pimpp.dev/g/exa/...`
-- Dune: `https://pimpp.dev/g/dune/...`
-- Firecrawl: `https://pimpp.dev/g/firecrawl/...`
-- Alchemy: `https://pimpp.dev/g/alchemy/...`
-- Nansen: `https://pimpp.dev/g/nansen/...`
+- OpenAI: `https://api.pimpp.dev/g/openai/...`
+- Anthropic: `https://api.pimpp.dev/g/anthropic/...`
+- Perplexity: `https://api.pimpp.dev/g/perplexity/...`
+- Exa: `https://api.pimpp.dev/g/exa/...`
+- Dune: `https://api.pimpp.dev/g/dune/...`
+- Firecrawl: `https://api.pimpp.dev/g/firecrawl/...`
+- Alchemy: `https://api.pimpp.dev/g/alchemy/...`
+- Nansen: `https://api.pimpp.dev/g/nansen/...`
 
 Discover the current full list from `/gateway/services` or `/gateway/services/llms.txt` instead of hardcoding the catalog.
 
@@ -54,7 +54,7 @@ async function fetchWith402Retry(url: string, init?: RequestInit) {
 }
 
 const response = await fetchWith402Retry(
-  'https://pimpp.dev/g/openai/v1/chat/completions',
+  'https://api.pimpp.dev/g/openai/v1/chat/completions',
   {
     method: 'POST',
     headers: {

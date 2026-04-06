@@ -38,14 +38,14 @@ export BASE_RPC_URL=https://mainnet.base.org
 4. Verify the live gateway:
 
 ```bash
-curl -i https://pimpp.dev/gateway/services
-curl -i https://pimpp.dev/gateway/services/llms.txt
+curl -i https://api.pimpp.dev/gateway/services
+curl -i https://api.pimpp.dev/gateway/services/llms.txt
 ```
 
 5. Verify unpaid passthrough:
 
 ```bash
-curl -i -X POST https://pimpp.dev/g/openai/v1/responses \
+curl -i -X POST https://api.pimpp.dev/g/openai/v1/responses \
   -H 'content-type: application/json' \
   -d '{"model":"gpt-4.1-mini","input":"Say hello"}'
 ```
@@ -58,7 +58,7 @@ Expected result: `402 Payment Required`.
 PIMP_PRIVATE_KEY=0x... \
 BASE_RPC_URL=https://mainnet.base.org \
 npx tsx packages/pimpp-cli/src/cli.ts request \
-  "https://pimpp.dev/g/openai/v1/responses" \
+  "https://api.pimpp.dev/g/openai/v1/responses" \
   --method POST \
   --header content-type=application/json \
   --body '{"model":"gpt-4.1-mini","input":"Say hello"}'
