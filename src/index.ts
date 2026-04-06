@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 
+import { handleGateway } from './gateway.js'
 import { getEndpoint, registerEndpoint } from './registry.js'
 import { logDivider, logStage, logSuccess } from './log.js'
 import { handleProxyRequest } from './proxy.js'
@@ -36,6 +37,13 @@ app.get('/.well-known/payment', (c) =>
     token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
   }),
 )
+
+app.use('*', async (c, next) => {
+  if (c.req.path.startsWith('/gateway/') || c.req.path.startsWith('/g/')) {
+    return handleGateway(c.req.raw, c.env)
+  }
+  await next()
+})
 
 app.post('/register', async (c) => {
   const body = (await c.req.json()) as RegisterEndpointInput

@@ -61,9 +61,18 @@ export type ChallengeState = {
   routePath: string
 }
 
+export interface MppService {
+  id: string
+  name: string
+  serviceUrl: string
+  description: string
+  categories: string[]
+}
+
 export type Bindings = {
   BASE_RPC_URL: string
   ENDPOINTS: KVNamespace
+  GATEWAY_CACHE: KVNamespace
   PIMP_DATA_KEY: string
   PIMP_DESTINATION_WALLET: string
   PIMP_SECRET: string

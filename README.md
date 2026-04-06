@@ -109,6 +109,18 @@ npx tsx packages/pimpp-cli/src/cli.ts request \
   "https://pimpp.fun/p/abc123/weather?q=London"
 ```
 
+The request command also supports gateway-style POST calls with headers and a body:
+
+```bash
+PIMP_PRIVATE_KEY=0x... \
+BASE_RPC_URL=https://mainnet.base.org \
+npx tsx packages/pimpp-cli/src/cli.ts request \
+  "http://127.0.0.1:8787/g/openai/v1/responses" \
+  --method POST \
+  --header content-type=application/json \
+  --body '{"model":"gpt-4.1-mini","input":"Say hello"}'
+```
+
 ### TypeScript
 
 ```ts
@@ -136,6 +148,9 @@ Worker routes:
 - `/.well-known/payment`
 - `GET /templates`
 - `POST /register`
+- `GET /gateway/services`
+- `GET /gateway/services/llms.txt`
+- `ALL /g/:serviceId/*`
 - `GET /p/:id/status`
 - `ALL /p/:id/*`
 
@@ -191,6 +206,9 @@ npx tsx examples/agent-tool-demo.ts \
   "http://127.0.0.1:8787/p/<id>/tools/weather" \
   "What is the weather in London"
 ```
+
+The installable Codex skill for the gateway lives in `skills/pimpp`.
+Distribution details are documented in [docs/skill-install.md](/Users/shree/projects/pimmp/docs/skill-install.md).
 
 ## Local development
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "PIMPP Gateway"
+  short_description: "Call paid APIs through the PIMPP gateway"
+  default_prompt: "Use $pimpp to call a paid API through the unified PIMPP gateway."

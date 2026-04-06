@@ -47,6 +47,7 @@ describe('registerEndpoint', () => {
       {
         BASE_RPC_URL: 'https://mainnet.base.org',
         ENDPOINTS: endpoints,
+        GATEWAY_CACHE: endpoints,
         PIMP_DATA_KEY: btoa('12345678901234567890123456789012'),
         PIMP_DESTINATION_WALLET: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
         PIMP_SECRET: 'secret',

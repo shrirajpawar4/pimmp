@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import { parseRegisterArgs } from '../packages/pimpp-cli/src/cli.js'
+import { parseRegisterArgs, parseRequestArgs } from '../packages/pimpp-cli/src/cli.js'
 
 describe('parseRegisterArgs', () => {
   it('expands the openai template with a shared price', () => {
@@ -61,5 +61,37 @@ describe('parseRegisterArgs', () => {
     assert.throws(() =>
       parseRegisterArgs(['https://pimpp.fun', 'https://api.example.com']),
     )
+  })
+})
+
+describe('parseRequestArgs', () => {
+  it('parses a gateway POST request with headers and body', () => {
+    const parsed = parseRequestArgs([
+      'https://pimpp.dev/g/openai/v1/responses',
+      '--method',
+      'post',
+      '--header',
+      'content-type=application/json',
+      '--header',
+      'x-test=value',
+      '--body',
+      '{"model":"gpt-4.1-mini","input":"Say hello"}',
+    ])
+
+    assert.equal(parsed.url, 'https://pimpp.dev/g/openai/v1/responses')
+    assert.equal(parsed.method, 'POST')
+    assert.equal(parsed.headers.get('content-type'), 'application/json')
+    assert.equal(parsed.headers.get('x-test'), 'value')
+    assert.equal(parsed.body, '{"model":"gpt-4.1-mini","input":"Say hello"}')
+  })
+
+  it('defaults to POST when a body is provided without an explicit method', () => {
+    const parsed = parseRequestArgs([
+      'https://pimpp.dev/g/openai/v1/responses',
+      '--body',
+      '{"model":"gpt-4.1-mini","input":"Say hello"}',
+    ])
+
+    assert.equal(parsed.method, 'POST')
   })
 })

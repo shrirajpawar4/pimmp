@@ -23,10 +23,7 @@ async function main() {
   const [, , command, ...args] = process.argv
 
   if (command === 'request') {
-    const target = args[0]
-    if (!target) {
-      throw new Error('Usage: pimpp request <url>')
-    }
+    const options = parseRequestArgs(args)
 
     const mppx = Mppx.create({
       methods: [
@@ -38,7 +35,11 @@ async function main() {
       polyfill: false,
     })
 
-    const response = await mppx.fetch(target)
+    const response = await mppx.fetch(options.url, {
+      method: options.method,
+      headers: options.headers,
+      body: options.body,
+    })
     const body = await response.text()
     process.stdout.write(body)
     return
@@ -168,10 +169,65 @@ export function parseRegisterArgs(args: string[]) {
   }
 }
 
+export function parseRequestArgs(args: string[]) {
+  const url = args[0]
+  if (!url) {
+    throw new Error('Usage: pimpp request <url> [--method METHOD] [--header name=value] [--body text]')
+  }
+
+  const headers = new Headers()
+  let method = 'GET'
+  let body: string | undefined
+
+  for (let index = 1; index < args.length; index += 1) {
+    const flag = args[index]
+    const value = args[index + 1]
+
+    if (flag !== '--method' && flag !== '--header' && flag !== '--body') {
+      throw new Error(`Unknown option: ${flag}`)
+    }
+    if (!value) {
+      throw new Error(`Missing value for ${flag}`)
+    }
+
+    if (flag === '--method') {
+      method = value.toUpperCase()
+    } else if (flag === '--body') {
+      body = value
+    } else {
+      const separator = value.indexOf('=')
+      if (separator === -1) {
+        throw new Error(`Expected name=value for ${flag}, received: ${value}`)
+      }
+
+      const name = value.slice(0, separator).trim()
+      const headerValue = value.slice(separator + 1).trim()
+      if (!name || !headerValue) {
+        throw new Error(`Expected name=value for ${flag}, received: ${value}`)
+      }
+
+      headers.set(name, headerValue)
+    }
+
+    index += 1
+  }
+
+  if (body && method === 'GET') {
+    method = 'POST'
+  }
+
+  return {
+    body,
+    headers,
+    method,
+    url,
+  }
+}
+
 function usage() {
   return [
     'Usage:',
-    '  pimpp request <url>',
+    '  pimpp request <url> [--method METHOD] [--header name=value] [--body text]',
     `  pimpp register <worker-url> <base-url> [--template ${getTemplateUsageList()}] [--price usdc] [--route path=price] [--auth-header name=value]`,
     '  pimpp wallet whoami',
   ].join('\n')
