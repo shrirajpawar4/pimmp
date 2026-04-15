@@ -2,8 +2,13 @@ import { nanoid } from 'nanoid'
 import { getAddress, isAddress, parseUnits } from 'viem'
 
 import { decryptMap, encryptMap } from './crypto.js'
+import { normalizeTempoUsdPaymentInput } from './payments/tempo-usd.js'
+import { createDefaultUsdcBasePayment } from './payments/usdc-base.js'
+import { normalizeUsdcBasePaymentInput } from './payments/usdc-base.js'
 import type {
   Bindings,
+  EndpointPaymentConfig,
+  LegacyStoredEndpoint,
   MatchedRoute,
   PimpEndpoint,
   RegisterEndpointInput,
@@ -31,18 +36,16 @@ export async function registerEndpoint(
   if (!routePricesAtomic && !fallbackPriceAtomic) {
     throw new Error('routePricesUsdc must include at least one route price')
   }
-  const destinationWallet = validateDestinationWallet(
-    input.destinationWallet ?? env.PIMP_DESTINATION_WALLET,
-  )
   const id = nanoid(10)
   const upstreamHeaders = normalizeUpstreamHeaders(input)
+  const payment = normalizeEndpointPayment(env, input)
 
   const stored: StoredEndpoint = {
     callCount: 0,
     createdAt: Date.now(),
-    destinationWallet,
     id,
     originUrl: originUrl.toString(),
+    payment,
     ...(routePricesAtomic ? { routePricesAtomic } : {}),
     ...(fallbackPriceAtomic ? { priceAtomic: fallbackPriceAtomic } : {}),
     upstreamHeaders: await encryptMap(upstreamHeaders, env.PIMP_DATA_KEY),
@@ -65,17 +68,34 @@ export async function registerEndpoint(
   }
 }
 
+function normalizeEndpointPayment(
+  env: Bindings,
+  input: RegisterEndpointInput,
+): EndpointPaymentConfig {
+  if (!input.payment) {
+    return createDefaultUsdcBasePayment(
+      validateDestinationWallet(input.destinationWallet ?? env.PIMP_DESTINATION_WALLET),
+    )
+  }
+
+  if (input.payment.method === 'tempo-usd') {
+    return normalizeTempoUsdPaymentInput(env, input.payment)
+  }
+
+  return normalizeUsdcBasePaymentInput(input.payment)
+}
+
 export async function getEndpoint(env: Bindings, id: string): Promise<PimpEndpoint | null> {
   const raw = await env.ENDPOINTS.get(id)
   if (!raw) return null
-  const stored = JSON.parse(raw) as StoredEndpoint
+  const stored = JSON.parse(raw) as LegacyStoredEndpoint | StoredEndpoint
   return hydrateEndpoint(env, stored)
 }
 
 export async function incrementCallCount(env: Bindings, endpoint: PimpEndpoint) {
   const raw = await env.ENDPOINTS.get(endpoint.id)
   if (!raw) return
-  const stored = JSON.parse(raw) as StoredEndpoint
+  const stored = JSON.parse(raw) as LegacyStoredEndpoint | StoredEndpoint
   stored.callCount += 1
   await env.ENDPOINTS.put(endpoint.id, JSON.stringify(stored))
 }
@@ -154,13 +174,17 @@ export function validateDestinationWallet(value: string) {
   return getAddress(value)
 }
 
-async function hydrateEndpoint(env: Bindings, stored: StoredEndpoint): Promise<PimpEndpoint> {
+async function hydrateEndpoint(
+  env: Bindings,
+  stored: LegacyStoredEndpoint | StoredEndpoint,
+): Promise<PimpEndpoint> {
+  const payment = 'payment' in stored ? stored.payment : createDefaultUsdcBasePayment(stored.destinationWallet)
   return {
     callCount: stored.callCount,
     createdAt: stored.createdAt,
-    destinationWallet: stored.destinationWallet,
     id: stored.id,
     originUrl: stored.originUrl,
+    payment,
     priceAtomic: stored.priceAtomic,
     routePricesAtomic: stored.routePricesAtomic,
     upstreamHeaders: await decryptMap(stored.upstreamHeaders, env.PIMP_DATA_KEY),

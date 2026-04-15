@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis/cloudflare'
 
-import type { Bindings, ChallengeState } from './types.js'
+import type { Bindings, ChallengeState, LegacyChallengeState } from './types.js'
 
 const CHALLENGE_TTL_SECONDS = 300
 const SPENT_TTL_SECONDS = 60 * 60 * 24
@@ -19,7 +19,7 @@ export async function storeChallenge(env: Bindings, challengeId: string, state: 
 }
 
 export async function getChallenge(env: Bindings, challengeId: string) {
-  return getRedis(env).get<ChallengeState>(`challenge:${challengeId}`)
+  return getRedis(env).get<ChallengeState | LegacyChallengeState>(`challenge:${challengeId}`)
 }
 
 export async function markSpent(env: Bindings, txid: string) {

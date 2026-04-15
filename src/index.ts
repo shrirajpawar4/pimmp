@@ -12,7 +12,7 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.get('/', (c) =>
   c.json({
     name: 'pimpp',
-    description: 'Transparent MPP payment proxy for HTTP APIs using USDC on Base.',
+    description: 'Transparent MPP payment proxy for HTTP APIs with pluggable payment methods.',
     endpoints: {
       paymentMethod: '/.well-known/payment',
       register: '/register',
@@ -71,6 +71,14 @@ app.get('/p/:id/status', async (c) => {
     callCount: endpoint.callCount,
     createdAt: endpoint.createdAt,
     originHost: new URL(endpoint.originUrl).host,
+    payment: {
+      chainId: endpoint.payment.chainId,
+      currency: endpoint.payment.currency,
+      method: endpoint.payment.method,
+      network: endpoint.payment.network,
+      recipient: endpoint.payment.recipient,
+      token: endpoint.payment.token,
+    },
     ...(endpoint.routePricesAtomic
       ? { routePricesAtomic: endpoint.routePricesAtomic }
       : { priceAtomic: endpoint.priceAtomic }),

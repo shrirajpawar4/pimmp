@@ -1,0 +1,32 @@
+{
+  "name": "@pimpp/tempo-usd",
+  "version": "0.1.0",
+  "description": "MPP payment method for USD-denominated TIP20 transfers on Tempo, built for pimpp and compatible clients.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./src/index.ts",
+  "files": [
+    "src"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./client": "./src/client.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/pimpp.git",
+    "directory": "packages/tempo-usd"
+  },
+  "keywords": [
+    "mpp",
+    "tempo",
+    "payments",
+    "tip20"
+  ],
+  "dependencies": {
+    "mppx": "^0.4.8",
+    "viem": "^2.28.0",
+    "zod": "^4.1.5"
+  }
+}

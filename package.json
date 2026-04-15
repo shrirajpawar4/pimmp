@@ -23,7 +23,7 @@
     "demo:upstream": "tsx scripts/demo-upstream.ts",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit --project tsconfig.json",
-    "test": "tsx --test test/**/*.test.ts packages/usdc-base/test/**/*.test.ts"
+    "test": "tsx --test test/**/*.test.ts packages/usdc-base/test/**/*.test.ts packages/tempo-usd/test/**/*.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.12",

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { getAddress } from 'viem'
 
+import { createDefaultUsdcBasePayment } from '../src/payments/usdc-base.js'
 import {
   matchRoutePrice,
   normalizePrice,
@@ -42,9 +43,11 @@ describe('registry validation', () => {
         {
           callCount: 0,
           createdAt: Date.now(),
-          destinationWallet: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
           id: 'endpoint-1',
           originUrl: 'https://api.example.com',
+          payment: createDefaultUsdcBasePayment(
+            getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+          ),
           routePricesAtomic: {
             '/search': '10000',
             '/summarize': '20000',
@@ -62,9 +65,11 @@ describe('registry validation', () => {
         {
           callCount: 0,
           createdAt: Date.now(),
-          destinationWallet: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
           id: 'endpoint-2',
           originUrl: 'https://api.example.com',
+          payment: createDefaultUsdcBasePayment(
+            getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+          ),
           priceAtomic: '5000',
           upstreamHeaders: {},
           upstreamQuery: {},
@@ -79,9 +84,11 @@ describe('registry validation', () => {
         {
           callCount: 0,
           createdAt: Date.now(),
-          destinationWallet: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
           id: 'endpoint-3',
           originUrl: 'https://api.example.com',
+          payment: createDefaultUsdcBasePayment(
+            getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+          ),
           routePricesAtomic: {
             '/search': '10000',
           },
