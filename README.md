@@ -3,7 +3,9 @@
 **Turn any API into a paid API.**
 
 PIMPP puts a paid proxy in front of an existing HTTP API.
-Clients get a standard `402 Payment Required` flow, pay in USDC on Base, and PIMPP forwards the request to your upstream.
+Clients get a standard `402 Payment Required` flow, pay with a configured MPP payment method, and PIMPP forwards the request to your upstream.
+
+The repo currently includes `usdc-base` for USDC on Base and a custom `tempo-usd` rail for one-time Tempo TIP-20 stablecoin payments.
 
 Your API stays the same.
 
@@ -29,19 +31,36 @@ npm install
 ```text
 Client  ->  GET /p/abc123/weather?q=London
 PIMPP   ->  402 Payment Required + payment details
-Client  ->  pay in USDC on Base
+Client  ->  pay with the endpoint's configured method
 Client  ->  retry with payment proof
 PIMPP   ->  verify payment, forward upstream
 Origin  ->  200 OK
 PIMPP   ->  200 OK + Payment-Receipt
 ```
 
+For `usdc-base`, verification checks the submitted transaction receipt for the expected USDC transfer on Base. For `tempo-usd`, verification checks a Tempo TIP-20 `TransferWithMemo` receipt log whose memo binds the payment to the challenge.
+
 ## What is included
 
 - Cloudflare Worker proxy for paid HTTP endpoints
 - `@pimpp/usdc-base` payment method for USDC on Base
+- `@pimpp/tempo-usd` payment method for one-time Tempo TIP-20 transfers
 - `pimpp` CLI for registration and `402 -> pay -> retry`
+- Redis-backed replay protection using atomic transaction-id claims
 - agent demo showing how to call a paid endpoint from a tool
+
+## Payment methods
+
+- `usdc-base`: USDC transfer on Base, verified by transaction receipt.
+- `tempo-usd`: TIP-20 stablecoin transfer on Tempo. PIMPP hashes the challenge id into a 32-byte memo and verifies the matching `TransferWithMemo` receipt log.
+
+`tempo-usd` currently supports one-shot charges only.
+
+## Tempo support status
+
+This repo uses the custom method name `tempo-usd` for Tempo payments. It supports MPP `charge`-style one-time payments, where each paid request settles with a Tempo TIP-20 transfer.
+
+It does not yet support MPP sessions, streamed payments, vouchers, fee sponsorship, pull-mode co-signing, or the canonical `mppx` `tempo()` integration. Modern Tempo MPP docs describe canonical `tempo` support in `mppx` for both charge and session intents; this repo has custom charge-only support today.
 
 ## Register an endpoint
 
@@ -97,6 +116,30 @@ The `POST /register` body is now:
   }
 }
 ```
+
+To register a Tempo endpoint, pass `payment.method: "tempo-usd"` with `recipient`, `token`, and optional `chainId` and `network: "tempo"`:
+
+```json
+{
+  "baseUrl": "https://api.example.com/v1",
+  "authHeader": {
+    "name": "authorization",
+    "value": "Bearer secret"
+  },
+  "routePricesUsdc": {
+    "/search": "0.01"
+  },
+  "payment": {
+    "method": "tempo-usd",
+    "recipient": "0x0000000000000000000000000000000000000000",
+    "token": "0x20c0000000000000000000000000000000000001",
+    "chainId": 42431,
+    "network": "tempo"
+  }
+}
+```
+
+`TEMPO_RPC_URL` is required for Tempo payments. `TEMPO_CHAIN_ID` is also required when a Tempo registration omits `payment.chainId`.
 
 ## Client
 
@@ -159,7 +202,7 @@ Worker routes:
 ```json
 {
   "name": "pimpp",
-  "description": "Transparent MPP payment proxy for HTTP APIs using USDC on Base."
+  "description": "Transparent MPP payment proxy for HTTP APIs."
 }
 ```
 
@@ -220,17 +263,21 @@ Copy `.env.example` and fill in:
 cp .env.example .env
 ```
 
-Required values:
+Core values:
 
 ```bash
 PIMP_SECRET=
 PIMP_DATA_KEY=
 BASE_RPC_URL=
+TEMPO_RPC_URL=
+TEMPO_CHAIN_ID=
 PIMP_DESTINATION_WALLET=
 UPSTASH_REDIS_REST_URL=
 UPSTASH_REDIS_REST_TOKEN=
 PIMP_PRIVATE_KEY=
 ```
+
+`BASE_RPC_URL` is used for `usdc-base`. `TEMPO_RPC_URL` is required for `tempo-usd`; `TEMPO_CHAIN_ID` is required when the registered Tempo payment method does not include a chain id.
 
 Generate local values:
 
@@ -261,9 +308,13 @@ src/
   registry.ts       endpoint registration and validation
   payment.ts        payment challenge and verification helpers
   replay.ts         replay protection
+  payments/
+    usdc-base.ts    pimpp adapter for USDC on Base
+    tempo-usd.ts    pimpp adapter for custom Tempo TIP-20 payments
 packages/
   pimpp-cli/        CLI for register, request, wallet whoami
   usdc-base/        USDC-on-Base payment method for mppx
+  tempo-usd/        custom Tempo TIP-20 payment method for mppx
 examples/
   agent-tool-demo.ts
 ```
@@ -271,15 +322,19 @@ examples/
 ## Current scope
 
 - one-shot charge flow
+- USDC-on-Base support
+- custom Tempo TIP-20 one-time payment support
 - no sessions yet
 - no streaming yet
+- no canonical Tempo `mppx` session support yet
 - exact-path route pricing for registered paths
 - upstreams must be internet reachable
 
 ## Security notes
 
 - upstream auth data is encrypted before storage
-- replay protection uses Redis-backed transaction tracking
+- payment transaction ids are atomically claimed after verification to prevent replay
+- Tempo transfer memos bind payments to the challenge id
 - `Authorization` is stripped before forwarding upstream
 - obvious localhost and private-network targets are blocked
 
