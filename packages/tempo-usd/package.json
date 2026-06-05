@@ -1,7 +1,7 @@
 {
-  "name": "@pimpp/usdc-base",
+  "name": "@pimpp/tempo-usd",
   "version": "0.1.0",
-  "description": "MPP payment method for USDC on Base, built for pimpp and compatible clients.",
+  "description": "MPP payment method for USD-denominated TIP20 transfers on Tempo, built for pimpp and compatible clients.",
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
@@ -16,13 +16,13 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/shrirajpawar4/pimpp.git",
-    "directory": "packages/usdc-base"
+    "directory": "packages/tempo-usd"
   },
   "keywords": [
     "mpp",
-    "usdc",
-    "base",
-    "payments"
+    "tempo",
+    "payments",
+    "tip20"
   ],
   "dependencies": {
     "mppx": "^0.4.8",

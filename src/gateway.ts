@@ -12,8 +12,8 @@ export async function handleGateway(request: Request, env: Bindings) {
     try {
       logStage('GATEWAY', 'services directory requested')
       return json(await getGatewayServices(env))
-    } catch {
-      logWarn('GATEWAY', 'service registry unavailable for /gateway/services')
+    } catch (error) {
+      logWarn('GATEWAY', `service registry unavailable for /gateway/services error=${formatError(error)}`)
       return json({ error: 'service registry unavailable' }, 502)
     }
   }
@@ -27,8 +27,11 @@ export async function handleGateway(request: Request, env: Bindings) {
           'content-type': 'text/plain; charset=utf-8',
         },
       })
-    } catch {
-      logWarn('GATEWAY', 'service registry unavailable for /gateway/services/llms.txt')
+    } catch (error) {
+      logWarn(
+        'GATEWAY',
+        `service registry unavailable for /gateway/services/llms.txt error=${formatError(error)}`,
+      )
       return json({ error: 'service registry unavailable' }, 502)
     }
   }
@@ -36,8 +39,11 @@ export async function handleGateway(request: Request, env: Bindings) {
   if (url.pathname.startsWith('/g/')) {
     try {
       return await proxyGatewayRequest(request, env)
-    } catch {
-      logWarn('GATEWAY', `service registry unavailable for ${request.method} ${url.pathname}`)
+    } catch (error) {
+      logWarn(
+        'GATEWAY',
+        `service registry unavailable for ${request.method} ${url.pathname} error=${formatError(error)}`,
+      )
       return json({ error: 'service registry unavailable' }, 502)
     }
   }
@@ -151,6 +157,10 @@ function parseGatewayPath(pathname: string) {
     serviceId: trimmed.slice(0, slashIndex),
     suffix: trimmed.slice(slashIndex) || '/',
   }
+}
+
+function formatError(error: unknown) {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function normalizeServices(value: unknown): MppService[] {

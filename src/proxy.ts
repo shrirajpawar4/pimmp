@@ -1,9 +1,10 @@
 import { Challenge } from 'mppx'
 
 import { logStage, logSuccess } from './log.js'
+import { getPaymentAdapter } from './payments/index.js'
 import { incrementCallCount, matchRoutePrice, normalizeRoutePath } from './registry.js'
 import { storeChallenge } from './replay.js'
-import type { Bindings, PimpEndpoint } from './types.js'
+import type { Bindings, ChallengeState, PaymentCharge, PimpEndpoint } from './types.js'
 import { createPaymentHandler } from './mpp.js'
 
 export async function handleProxyRequest(
@@ -23,18 +24,10 @@ export async function handleProxyRequest(
       },
     })
   }
+  const adapter = getPaymentAdapter(endpoint.payment.method)
+  const chargeRequest = adapter.buildChargeRequest(endpoint, matchedRoute)
   const payment = createPaymentHandler(env, endpoint, url.host)
-  const result = await payment.charge({
-    amount: matchedRoute.priceAtomic,
-    currency: 'usdc',
-    recipient: endpoint.destinationWallet,
-    description: `Proxy access for ${endpoint.id}${matchedRoute.path}`,
-    methodDetails: {
-      chainId: 8453,
-      network: 'base',
-      token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-    },
-  })(request)
+  const result = await payment.charge(chargeRequest)(request)
 
   if (result.status === 402) {
     const challenge = Challenge.fromResponse(result.challenge)
@@ -45,13 +38,16 @@ export async function handleProxyRequest(
       'CHALLENGE',
       `issued id=${endpoint.id} challenge=${challenge.id} route=${matchedRoute.path} amount=${matchedRoute.priceAtomic}`,
     )
-    await storeChallenge(env, challenge.id, {
-      endpointId: endpoint.id,
-      expectedAmount: matchedRoute.priceAtomic,
-      expectedRecipient: endpoint.destinationWallet,
-      expiresAt,
-      routePath: matchedRoute.path,
-    })
+    await storeChallenge(
+      env,
+      challenge.id,
+      createChallengeState({
+        chargeRequest: adapter.serializeChargeRequest(chargeRequest),
+        endpoint,
+        expiresAt,
+        routePath: matchedRoute.path,
+      }),
+    )
     return result.challenge
   }
 
@@ -71,6 +67,22 @@ export async function handleProxyRequest(
     `status=${upstreamResponse.status} id=${endpoint.id} route=${matchedRoute.path} upstream=${upstreamUrl}`,
   )
   return result.withReceipt(upstreamResponse)
+}
+
+export function createChallengeState(parameters: {
+  chargeRequest: PaymentCharge
+  endpoint: Pick<PimpEndpoint, 'id' | 'payment'>
+  expiresAt: number
+  routePath: string
+}): ChallengeState {
+  const { chargeRequest, endpoint, expiresAt, routePath } = parameters
+  return {
+    endpointId: endpoint.id,
+    expiresAt,
+    routePath,
+    paymentMethod: endpoint.payment.method,
+    chargeRequest,
+  }
 }
 
 export function buildUpstreamUrl(

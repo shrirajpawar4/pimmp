@@ -7,11 +7,11 @@
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-org/pimpp.git"
+    "url": "git+https://github.com/shrirajpawar4/pimpp.git"
   },
-  "homepage": "https://github.com/your-org/pimpp",
+  "homepage": "https://github.com/shrirajpawar4/pimpp",
   "bugs": {
-    "url": "https://github.com/your-org/pimpp/issues"
+    "url": "https://github.com/shrirajpawar4/pimpp/issues"
   },
   "packageManager": "npm@10.9.2",
   "workspaces": [
@@ -23,7 +23,7 @@
     "demo:upstream": "tsx scripts/demo-upstream.ts",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit --project tsconfig.json",
-    "test": "tsx --test test/**/*.test.ts packages/usdc-base/test/**/*.test.ts"
+    "test": "tsx --test test/**/*.test.ts packages/usdc-base/test/**/*.test.ts packages/tempo-usd/test/**/*.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.12",

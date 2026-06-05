@@ -238,6 +238,72 @@ describe('index routing', () => {
     assert.equal(proxyResponse.status, 404)
     assert.deepEqual(await proxyResponse.json(), { error: 'not found' })
   })
+
+  it('returns payment metadata from the endpoint status route', async () => {
+    const env = createEnv({
+      TEMPO_CHAIN_ID: '42431',
+      TEMPO_RPC_URL: 'https://rpc.moderato.tempo.xyz',
+    })
+
+    const registerResponse = await app.request(
+      'https://pimpp.dev/register',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          baseUrl: 'https://api.example.com/v1',
+          payment: {
+            method: 'tempo-usd',
+            recipient: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+            token: getAddress('0x1111111111111111111111111111111111111111'),
+          },
+          routePricesUsdc: {
+            '/search': '0.01',
+          },
+        }),
+      },
+      env,
+    )
+
+    assert.equal(registerResponse.status, 200)
+    const registered = (await registerResponse.json()) as { id: string }
+    const statusResponse = await app.request(`https://pimpp.dev/p/${registered.id}/status`, {}, env)
+
+    assert.equal(statusResponse.status, 200)
+    const statusBody = (await statusResponse.json()) as {
+      callCount: number
+      createdAt: number
+      originHost: string
+      payment: {
+        chainId: number
+        currency: string
+        method: string
+        network: string
+        recipient: string
+        token: string
+      }
+      routePricesAtomic: Record<string, string>
+    }
+    assert.equal(typeof statusBody.createdAt, 'number')
+    assert.deepEqual({ ...statusBody, createdAt: 0 }, {
+      callCount: 0,
+      createdAt: 0,
+      originHost: 'api.example.com',
+      payment: {
+        chainId: 42431,
+        currency: 'usd',
+        method: 'tempo-usd',
+        network: 'tempo',
+        recipient: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+        token: getAddress('0x1111111111111111111111111111111111111111'),
+      },
+      routePricesAtomic: {
+        '/search': '10000',
+      },
+    })
+  })
 })
 
 function createEnv(overrides: Partial<Bindings>): Bindings {
@@ -248,6 +314,8 @@ function createEnv(overrides: Partial<Bindings>): Bindings {
     PIMP_DATA_KEY: btoa('12345678901234567890123456789012'),
     PIMP_DESTINATION_WALLET: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
     PIMP_SECRET: 'secret',
+    TEMPO_CHAIN_ID: '42431',
+    TEMPO_RPC_URL: 'https://rpc.moderato.tempo.xyz',
     UPSTASH_REDIS_REST_TOKEN: 'token',
     UPSTASH_REDIS_REST_URL: 'https://redis.example.com',
     ...overrides,
