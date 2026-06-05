@@ -1,7 +1,7 @@
 import { logError, logStage, logSuccess, logWarn } from './log.js'
 import { getPaymentAdapter } from './payments/index.js'
 import { matchRoutePrice } from './registry.js'
-import { getChallenge, isSpent, markSpent } from './replay.js'
+import { claimTxid, getChallenge, isSpent } from './replay.js'
 import type { Bindings, ChallengeState, LegacyChallengeState, PaymentCharge, PimpEndpoint } from './types.js'
 
 export async function validateAndConsumePayment(parameters: {
@@ -13,16 +13,18 @@ export async function validateAndConsumePayment(parameters: {
   const { challengeId, endpoint, env, txid } = parameters
   logStage('VERIFY', `start id=${endpoint.id} challenge=${challengeId} txid=${txid}`)
 
+  if (await isSpent(env, txid)) {
+    logWarn('REPLAY', `reused txid=${txid} id=${endpoint.id}`)
+    return { valid: false, error: 'transaction already spent' }
+  }
+
   const resolution = resolvePaymentVerification({
     challenge: await getChallenge(env, challengeId),
     endpoint,
-    txidSpent: await isSpent(env, txid),
   })
 
   if (!resolution.ok) {
-    if (resolution.error === 'transaction already spent') {
-      logWarn('REPLAY', `reused txid=${txid} id=${endpoint.id}`)
-    } else if (
+    if (
       resolution.error === 'challenge not found or expired' ||
       resolution.error === 'challenge expired' ||
       resolution.error === 'challenge endpoint mismatch' ||
@@ -56,7 +58,11 @@ export async function validateAndConsumePayment(parameters: {
     return { valid: false, error: 'payment transfer did not match challenge' }
   }
 
-  await markSpent(env, txid)
+  if (!(await claimTxid(env, txid))) {
+    logWarn('REPLAY', `atomic claim lost txid=${txid} id=${endpoint.id}`)
+    return { valid: false, error: 'transaction already spent' }
+  }
+
   logSuccess(
     'PAID',
     `verified id=${endpoint.id} txid=${txid} route=${resolution.matchedRoute.path} amount=${resolution.matchedRoute.priceAtomic} recipient=${resolution.chargeRequest.recipient}`,
@@ -68,7 +74,6 @@ export function resolvePaymentVerification(parameters: {
   challenge: ChallengeState | LegacyChallengeState | null
   endpoint: PimpEndpoint
   now?: number
-  txidSpent: boolean
 }):
   | {
       ok: true
@@ -84,15 +89,10 @@ export function resolvePaymentVerification(parameters: {
         | 'challenge payment details mismatch'
         | 'challenge payment method mismatch'
         | 'challenge route mismatch'
-        | 'transaction already spent'
       ok: false
     } {
-  const { challenge, endpoint, txidSpent } = parameters
+  const { challenge, endpoint } = parameters
   const now = parameters.now ?? Date.now()
-
-  if (txidSpent) {
-    return { ok: false, error: 'transaction already spent' }
-  }
 
   if (!challenge) {
     return { ok: false, error: 'challenge not found or expired' }

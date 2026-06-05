@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { USDC_BASE_ADDRESS } from '@pimpp/usdc-base'
 
 import { handleGateway } from './gateway.js'
 import { getEndpoint, registerEndpoint } from './registry.js'
@@ -34,7 +35,7 @@ app.get('/.well-known/payment', (c) =>
     intent: 'charge',
     method: 'usdc-base',
     network: 'base',
-    token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    token: USDC_BASE_ADDRESS,
   }),
 )
 

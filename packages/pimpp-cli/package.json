@@ -12,7 +12,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-org/pimpp.git",
+    "url": "git+https://github.com/shrirajpawar4/pimpp.git",
     "directory": "packages/pimpp-cli"
   },
   "keywords": [
