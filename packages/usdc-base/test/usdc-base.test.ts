@@ -9,7 +9,15 @@ import {
   usdcBaseClient,
   usdcBaseMethod,
   usdcBaseRequestSchema,
+  verifyTransferWithRpc,
 } from '../src/index.js'
+
+const verifyTransferWithRpcForTest = verifyTransferWithRpc as unknown as (
+  parameters: Parameters<typeof verifyTransferWithRpc>[0] & {
+    client: ReturnType<typeof createRpcClient>
+    delay: (ms: number) => Promise<void>
+  },
+) => ReturnType<typeof verifyTransferWithRpc>
 
 describe('usdc-base schemas', () => {
   it('parses the request shape', () => {
@@ -131,3 +139,99 @@ describe('receiptMatchesTransfer', () => {
     assert.equal(matched.observedAmount, '1000000')
   })
 })
+
+describe('verifyTransferWithRpc confirmations', () => {
+  it('keeps the default polling behavior', async () => {
+    const delays: number[] = []
+    const client = createRpcClient([100n, 101n])
+
+    const result = await verifyTransferWithRpcForTest({
+      challengeId: 'challenge-1',
+      client,
+      delay: async (ms) => {
+        delays.push(ms)
+      },
+      request: createRequest(),
+      txid: createTxid(1n),
+    })
+
+    assert.equal(result.valid, true)
+    assert.deepEqual(delays, [1_000])
+    assert.equal(client.getBlockNumberCalls, 2)
+  })
+
+  it('honors custom confirmation blocks, attempts, and interval', async () => {
+    const delays: number[] = []
+    const client = createRpcClient([100n, 101n, 102n, 103n])
+
+    const result = await verifyTransferWithRpcForTest({
+      challengeId: 'challenge-1',
+      client,
+      confirmationBlocks: 3,
+      confirmationPollAttempts: 3,
+      confirmationPollIntervalMs: 5,
+      delay: async (ms) => {
+        delays.push(ms)
+      },
+      request: createRequest(),
+      txid: createTxid(2n),
+    })
+
+    assert.equal(result.valid, true)
+    assert.deepEqual(delays, [5, 5, 5])
+    assert.equal(client.getBlockNumberCalls, 4)
+  })
+})
+
+function createRequest() {
+  return {
+    amount: '1000000',
+    currency: 'usdc' as const,
+    recipient: '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
+    methodDetails: {
+      chainId: 8453,
+      network: 'base' as const,
+      token: USDC_BASE_ADDRESS,
+    },
+  }
+}
+
+function createRpcClient(blocks: bigint[]) {
+  const client = {
+    getBlockNumberCalls: 0,
+    async getBlockNumber() {
+      client.getBlockNumberCalls += 1
+      return blocks.shift() ?? 100n
+    },
+    async getTransactionReceipt() {
+      return {
+        blockNumber: 100n,
+        logs: [createTransferLog()],
+        status: 'success' as const,
+      }
+    },
+  }
+  return client
+}
+
+function createTransferLog() {
+  const transferTopic =
+    '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+  const fromTopic = `0x${'0'.repeat(24)}1111111111111111111111111111111111111111`
+  const toTopic = `0x${'0'.repeat(24)}742d35cc6634c0532925a3b844bc9e7595f8fe00`
+  const valueHex = `0x${(1000000n).toString(16).padStart(64, '0')}` as `0x${string}`
+
+  return {
+    address: USDC_BASE_ADDRESS,
+    data: valueHex,
+    topics: [
+      transferTopic as `0x${string}`,
+      fromTopic as `0x${string}`,
+      toTopic as `0x${string}`,
+    ],
+  }
+}
+
+function createTxid(value: bigint) {
+  return `0x${value.toString(16).padStart(64, '0')}`
+}

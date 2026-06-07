@@ -7,7 +7,7 @@ import { resolvePaymentVerification, validateAndConsumePayment } from '../src/pa
 import { createTempoUsdPayment } from '../src/payments/tempo-usd.js'
 import { createDefaultUsdcBasePayment } from '../src/payments/usdc-base.js'
 import { getPaymentAdapter, usdcBaseAdapter } from '../src/payments/index.js'
-import { claimTxid, SPENT_TTL_SECONDS } from '../src/replay.js'
+import { claimTxid, DEFAULT_SPENT_TTL_SECONDS, storeChallenge } from '../src/replay.js'
 import type { Bindings, ChallengeState, LegacyChallengeState, PimpEndpoint } from '../src/types.js'
 
 const originalFetch = globalThis.fetch
@@ -172,7 +172,7 @@ describe('validateAndConsumePayment', () => {
     assert.deepEqual(result, { valid: true })
     assert.equal(verifyTransfer.mock.callCount(), 1)
     assert.deepEqual(redis.commands.at(-1), [
-      ['set', 'spent:tx-1', '1', 'nx', 'ex', SPENT_TTL_SECONDS],
+      ['set', 'spent:tx-1', '1', 'nx', 'ex', DEFAULT_SPENT_TTL_SECONDS],
     ])
   })
 
@@ -197,7 +197,7 @@ describe('validateAndConsumePayment', () => {
     assert.deepEqual(result, { valid: false, error: 'transaction already spent' })
     assert.equal(verifyTransfer.mock.callCount(), 1)
     assert.deepEqual(redis.commands.at(-1), [
-      ['set', 'spent:tx-1', '1', 'nx', 'ex', SPENT_TTL_SECONDS],
+      ['set', 'spent:tx-1', '1', 'nx', 'ex', DEFAULT_SPENT_TTL_SECONDS],
     ])
   })
 
@@ -236,9 +236,34 @@ describe('claimTxid', () => {
     assert.equal(await claimTxid(createEnv(), 'tx-1'), true)
     assert.equal(await claimTxid(createEnv(), 'tx-2'), false)
     assert.deepEqual(redis.commands, [
-      [['set', 'spent:tx-1', '1', 'nx', 'ex', SPENT_TTL_SECONDS]],
-      [['set', 'spent:tx-2', '1', 'nx', 'ex', SPENT_TTL_SECONDS]],
+      [['set', 'spent:tx-1', '1', 'nx', 'ex', DEFAULT_SPENT_TTL_SECONDS]],
+      [['set', 'spent:tx-2', '1', 'nx', 'ex', DEFAULT_SPENT_TTL_SECONDS]],
     ])
+  })
+
+  it('uses the configured spent TTL for Redis claims', async () => {
+    const redis = mockRedis([{ result: 'OK' }])
+
+    assert.equal(await claimTxid(createEnv({ PIMP_SPENT_TTL_SECONDS: '42' }), 'tx-1'), true)
+    assert.deepEqual(redis.commands, [[['set', 'spent:tx-1', '1', 'nx', 'ex', 42]]])
+  })
+})
+
+describe('storeChallenge', () => {
+  it('uses the configured challenge TTL for Redis challenge writes', async () => {
+    const endpoint = createEndpoint()
+    const redis = mockRedis([{ result: 'OK' }])
+
+    await storeChallenge(
+      createEnv({ PIMP_CHALLENGE_TTL_SECONDS: '123' }),
+      'challenge-1',
+      createChallenge(endpoint),
+    )
+
+    assert.equal(redis.commands.length, 1)
+    assert.equal(redis.commands[0][0][0], 'set')
+    assert.equal(redis.commands[0][0][1], 'challenge:challenge-1')
+    assert.deepEqual(redis.commands[0][0].slice(-2), ['ex', 123])
   })
 })
 
@@ -305,7 +330,7 @@ function createTempoEndpoint(overrides: Partial<PimpEndpoint> = {}): PimpEndpoin
   }
 }
 
-function createEnv(): Bindings {
+function createEnv(overrides: Partial<Bindings> = {}): Bindings {
   return {
     BASE_RPC_URL: 'https://base.example.com',
     ENDPOINTS: {} as KVNamespace,
@@ -315,6 +340,7 @@ function createEnv(): Bindings {
     PIMP_SECRET: 'secret',
     UPSTASH_REDIS_REST_TOKEN: 'token',
     UPSTASH_REDIS_REST_URL: 'https://redis.example.com',
+    ...overrides,
   }
 }
 

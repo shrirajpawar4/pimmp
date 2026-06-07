@@ -266,18 +266,41 @@ cp .env.example .env
 Core values:
 
 ```bash
-PIMP_SECRET=
-PIMP_DATA_KEY=
-BASE_RPC_URL=
-TEMPO_RPC_URL=
-TEMPO_CHAIN_ID=
-PIMP_DESTINATION_WALLET=
-UPSTASH_REDIS_REST_URL=
-UPSTASH_REDIS_REST_TOKEN=
+PIMP_SECRET=                         # required
+PIMP_DATA_KEY=                       # required, base64-encoded 32-byte key
+BASE_RPC_URL=                        # required for usdc-base verification
+PIMP_DESTINATION_WALLET=             # required default usdc-base recipient
+UPSTASH_REDIS_REST_URL=              # required for challenge and replay state
+UPSTASH_REDIS_REST_TOKEN=            # required for challenge and replay state
+TEMPO_RPC_URL=                       # required for tempo-usd verification
+TEMPO_CHAIN_ID=                      # required when Tempo registration omits chainId
 PIMP_PRIVATE_KEY=
 ```
 
-`BASE_RPC_URL` is used for `usdc-base`. `TEMPO_RPC_URL` is required for `tempo-usd`; `TEMPO_CHAIN_ID` is required when the registered Tempo payment method does not include a chain id.
+Optional Worker configuration and defaults:
+
+```bash
+PIMP_CHALLENGE_TTL_SECONDS=300
+PIMP_SPENT_TTL_SECONDS=86400
+MPP_REGISTRY_URL=https://mpp.dev/api/services
+GATEWAY_CACHE_KEY=gateway:services:v1
+GATEWAY_CACHE_TTL_SECONDS=3600
+PIMP_ENDPOINT_ID_LENGTH=10
+PIMP_MIN_PRICE_USDC=0.001
+PIMP_MAX_PRICE_USDC=100
+PIMP_SERVICE_NAME=pimpp
+PIMP_SERVICE_DESCRIPTION=Transparent MPP payment proxy for HTTP APIs with pluggable payment methods.
+PIMP_REGISTER_INSTRUCTIONS=Call one of the proxied URLs. Unpaid requests receive a 402 MPP challenge.
+USDC_CONFIRMATION_POLL_INTERVAL_MS=1000
+USDC_CONFIRMATION_POLL_ATTEMPTS=10
+USDC_CONFIRMATION_BLOCKS=1
+```
+
+TTL and polling values must be positive integers. Challenge state and replay prevention use Upstash Redis; replay prevention depends on the atomic `SET ... NX` claim for `spent:<txid>`.
+
+`PIMP_ENDPOINT_ID_LENGTH` must be between 6 and 64. `PIMP_MIN_PRICE_USDC` and `PIMP_MAX_PRICE_USDC` set registration price policy and must be positive decimal USDC values.
+
+`USDC_BASE_ADDRESS`, `USDC_BASE_CHAIN_ID`, `USDC_DECIMALS`, supported Tempo chain ids, and private-origin blocking rules are intentionally not environment-configurable because they are protocol and security invariants.
 
 Generate local values:
 

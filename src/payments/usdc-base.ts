@@ -7,6 +7,7 @@ import {
 } from '@pimpp/usdc-base'
 import { getAddress, isAddressEqual } from 'viem'
 
+import { parseOptionalPositiveInteger } from '../config.js'
 import type { Bindings, PaymentCharge, PimpEndpoint, RegisterEndpointPaymentInput } from '../types.js'
 import type { PaymentMethodAdapter } from './types.js'
 
@@ -14,6 +15,9 @@ export const usdcBaseAdapter: PaymentMethodAdapter = {
   method: 'usdc-base',
   createServerMethod(env, verifyTransfer) {
     return usdcBase({
+      confirmationBlocks: getUsdcConfirmationBlocks(env),
+      confirmationPollAttempts: getUsdcConfirmationPollAttempts(env),
+      confirmationPollIntervalMs: getUsdcConfirmationPollIntervalMs(env),
       rpcUrl: env.BASE_RPC_URL,
       verifyTransfer,
     })
@@ -76,6 +80,9 @@ export const usdcBaseAdapter: PaymentMethodAdapter = {
     const { challengeId, env, request, txid } = parameters
     return verifyTransferWithRpc({
       challengeId,
+      confirmationBlocks: getUsdcConfirmationBlocks(env),
+      confirmationPollAttempts: getUsdcConfirmationPollAttempts(env),
+      confirmationPollIntervalMs: getUsdcConfirmationPollIntervalMs(env),
       request: usdcBaseRequestSchema.parse(request),
       rpcUrl: env.BASE_RPC_URL,
       txid,
@@ -116,4 +123,32 @@ function addressesMatch(left: string, right: string) {
   } catch {
     return false
   }
+}
+
+function getUsdcConfirmationPollIntervalMs(
+  env: Pick<Bindings, 'USDC_CONFIRMATION_POLL_INTERVAL_MS'>,
+) {
+  return parseOptionalPositiveInteger(
+    env.USDC_CONFIRMATION_POLL_INTERVAL_MS,
+    'USDC_CONFIRMATION_POLL_INTERVAL_MS',
+    1_000,
+  )
+}
+
+function getUsdcConfirmationPollAttempts(
+  env: Pick<Bindings, 'USDC_CONFIRMATION_POLL_ATTEMPTS'>,
+) {
+  return parseOptionalPositiveInteger(
+    env.USDC_CONFIRMATION_POLL_ATTEMPTS,
+    'USDC_CONFIRMATION_POLL_ATTEMPTS',
+    10,
+  )
+}
+
+function getUsdcConfirmationBlocks(env: Pick<Bindings, 'USDC_CONFIRMATION_BLOCKS'>) {
+  return parseOptionalPositiveInteger(
+    env.USDC_CONFIRMATION_BLOCKS,
+    'USDC_CONFIRMATION_BLOCKS',
+    1,
+  )
 }

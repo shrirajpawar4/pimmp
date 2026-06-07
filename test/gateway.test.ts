@@ -58,6 +58,68 @@ describe('gateway registry cache', () => {
     ])
   })
 
+  it('uses configured registry URL and cache TTL', async () => {
+    const cache = createKvNamespace()
+    globalThis.fetch = async (input) => {
+      assert.equal(String(input), 'https://registry.example.com/services')
+      return jsonResponse({ services: SAMPLE_SERVICES })
+    }
+
+    const services = await getGatewayServices(
+      createEnv({
+        GATEWAY_CACHE: cache,
+        GATEWAY_CACHE_TTL_SECONDS: '27',
+        MPP_REGISTRY_URL: 'https://registry.example.com/services',
+      }),
+    )
+
+    assert.deepEqual(services, SAMPLE_SERVICES)
+    assert.deepEqual(cache.puts, [
+      {
+        key: 'gateway:services:v1',
+        value: JSON.stringify(SAMPLE_SERVICES),
+        options: { expirationTtl: 27 },
+      },
+    ])
+  })
+
+  it('uses a configured cache key', async () => {
+    const cache = createKvNamespace()
+    globalThis.fetch = async () => jsonResponse({ services: SAMPLE_SERVICES })
+
+    await getGatewayServices(
+      createEnv({
+        GATEWAY_CACHE: cache,
+        GATEWAY_CACHE_KEY: 'gateway:services:test',
+      }),
+    )
+
+    assert.equal(cache.puts[0].key, 'gateway:services:test')
+  })
+
+  it('throws predictable errors for invalid registry and cache config', async () => {
+    await assert.rejects(
+      getGatewayServices(
+        createEnv({
+          GATEWAY_CACHE: createKvNamespace(),
+          MPP_REGISTRY_URL: 'not a url',
+        }),
+      ),
+      /MPP_REGISTRY_URL must be a valid URL/,
+    )
+
+    globalThis.fetch = async () => jsonResponse({ services: SAMPLE_SERVICES })
+    await assert.rejects(
+      getGatewayServices(
+        createEnv({
+          GATEWAY_CACHE: createKvNamespace(),
+          GATEWAY_CACHE_TTL_SECONDS: '0',
+        }),
+      ),
+      /GATEWAY_CACHE_TTL_SECONDS must be a positive integer/,
+    )
+  })
+
   it('serves the registry from KV on cache hit', async () => {
     const cache = createKvNamespace({
       'gateway:services:v1': JSON.stringify(SAMPLE_SERVICES),
@@ -223,6 +285,22 @@ describe('handleGateway', () => {
 })
 
 describe('index routing', () => {
+  it('returns configured service metadata from the root route', async () => {
+    const response = await app.request(
+      'https://pimpp.dev/',
+      {},
+      createEnv({
+        PIMP_SERVICE_DESCRIPTION: 'Configured proxy description.',
+        PIMP_SERVICE_NAME: 'configured-pimpp',
+      }),
+    )
+
+    assert.equal(response.status, 200)
+    const body = (await response.json()) as { description: string; name: string }
+    assert.equal(body.name, 'configured-pimpp')
+    assert.equal(body.description, 'Configured proxy description.')
+  })
+
   it('dispatches gateway paths without affecting the existing /p flow', async () => {
     const env = createEnv({
       ENDPOINTS: createKvNamespace(),
@@ -303,6 +381,33 @@ describe('index routing', () => {
         '/search': '10000',
       },
     })
+  })
+
+  it('returns configured register instructions', async () => {
+    const env = createEnv({
+      PIMP_REGISTER_INSTRUCTIONS: 'Configured payment instructions.',
+    })
+
+    const response = await app.request(
+      'https://pimpp.dev/register',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          baseUrl: 'https://api.example.com/v1',
+          routePricesUsdc: {
+            '/search': '0.01',
+          },
+        }),
+      },
+      env,
+    )
+
+    assert.equal(response.status, 200)
+    const body = (await response.json()) as { instructions: string }
+    assert.equal(body.instructions, 'Configured payment instructions.')
   })
 })
 

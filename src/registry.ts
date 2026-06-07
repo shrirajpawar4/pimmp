@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid'
 import { getAddress, isAddress, parseUnits } from 'viem'
 
+import { parseOptionalIntegerInRange } from './config.js'
 import { decryptMap, encryptMap } from './crypto.js'
 import { normalizeTempoUsdPaymentInput } from './payments/tempo-usd.js'
 import { createDefaultUsdcBasePayment } from './payments/usdc-base.js'
@@ -18,6 +19,7 @@ import type {
 
 const MIN_PRICE_ATOMIC = 1_000n
 const MAX_PRICE_ATOMIC = 100_000_000n
+const DEFAULT_ENDPOINT_ID_LENGTH = 10
 const DEFAULT_ROUTE_PATH = '/'
 const DISALLOWED_HOSTS = new Set([
   'localhost',
@@ -31,12 +33,12 @@ export async function registerEndpoint(
   input: RegisterEndpointInput,
 ): Promise<RegisterEndpointResult> {
   const originUrl = validateOriginUrl(input.baseUrl ?? input.originUrl ?? '')
-  const routePricesAtomic = normalizeRoutePrices(input)
-  const fallbackPriceAtomic = !routePricesAtomic && input.priceUsdc ? normalizePrice(input.priceUsdc) : null
+  const routePricesAtomic = normalizeRoutePrices(input, env)
+  const fallbackPriceAtomic = !routePricesAtomic && input.priceUsdc ? normalizePrice(input.priceUsdc, env) : null
   if (!routePricesAtomic && !fallbackPriceAtomic) {
     throw new Error('routePricesUsdc must include at least one route price')
   }
-  const id = nanoid(10)
+  const id = nanoid(getEndpointIdLength(env))
   const upstreamHeaders = normalizeUpstreamHeaders(input)
   const payment = normalizeEndpointPayment(env, input)
 
@@ -136,15 +138,19 @@ export function validateOriginUrl(value: string) {
   return url
 }
 
-export function normalizePrice(value: string) {
+export function normalizePrice(
+  value: string,
+  env?: Pick<Bindings, 'PIMP_MAX_PRICE_USDC' | 'PIMP_MIN_PRICE_USDC'>,
+) {
   let atomic: bigint
   try {
     atomic = parseUnits(value, 6)
   } catch {
     throw new Error('priceUsdc must be a decimal USDC amount')
   }
-  if (atomic < MIN_PRICE_ATOMIC || atomic > MAX_PRICE_ATOMIC) {
-    throw new Error('priceUsdc must be between 0.001 and 100')
+  const bounds = getPriceBoundsAtomic(env)
+  if (atomic < bounds.min || atomic > bounds.max) {
+    throw new Error(`priceUsdc must be between ${bounds.minUsdc} and ${bounds.maxUsdc}`)
   }
   return atomic.toString()
 }
@@ -192,11 +198,24 @@ async function hydrateEndpoint(
   }
 }
 
-function normalizeRoutePrices(input: RegisterEndpointInput) {
+export function getEndpointIdLength(env: Pick<Bindings, 'PIMP_ENDPOINT_ID_LENGTH'>) {
+  return parseOptionalIntegerInRange(
+    env.PIMP_ENDPOINT_ID_LENGTH,
+    'PIMP_ENDPOINT_ID_LENGTH',
+    DEFAULT_ENDPOINT_ID_LENGTH,
+    6,
+    64,
+  )
+}
+
+function normalizeRoutePrices(
+  input: RegisterEndpointInput,
+  env: Pick<Bindings, 'PIMP_MAX_PRICE_USDC' | 'PIMP_MIN_PRICE_USDC'>,
+) {
   if (input.routePricesUsdc && Object.keys(input.routePricesUsdc).length > 0) {
     const normalizedEntries = Object.entries(input.routePricesUsdc).map(([path, priceUsdc]) => [
       normalizeRoutePath(path),
-      normalizePrice(priceUsdc),
+      normalizePrice(priceUsdc, env),
     ])
     return Object.fromEntries(normalizedEntries)
   }
@@ -230,4 +249,30 @@ function isPrivateHost(hostname: string) {
     if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true
   }
   return false
+}
+
+function getPriceBoundsAtomic(
+  env?: Pick<Bindings, 'PIMP_MAX_PRICE_USDC' | 'PIMP_MIN_PRICE_USDC'>,
+) {
+  const minUsdc = env?.PIMP_MIN_PRICE_USDC || '0.001'
+  const maxUsdc = env?.PIMP_MAX_PRICE_USDC || '100'
+  const min = parsePriceConfig(minUsdc, 'PIMP_MIN_PRICE_USDC')
+  const max = parsePriceConfig(maxUsdc, 'PIMP_MAX_PRICE_USDC')
+  if (min > max) {
+    throw new Error('PIMP_MIN_PRICE_USDC must be less than or equal to PIMP_MAX_PRICE_USDC')
+  }
+  return { max, maxUsdc, min, minUsdc }
+}
+
+function parsePriceConfig(value: string, name: string) {
+  let atomic: bigint
+  try {
+    atomic = parseUnits(value, 6)
+  } catch {
+    throw new Error(`${name} must be a decimal USDC amount`)
+  }
+  if (atomic <= 0n) {
+    throw new Error(`${name} must be greater than 0`)
+  }
+  return atomic
 }

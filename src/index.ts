@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { USDC_BASE_ADDRESS } from '@pimpp/usdc-base'
 
+import { parseOptionalString } from './config.js'
 import { handleGateway } from './gateway.js'
 import { getEndpoint, registerEndpoint } from './registry.js'
 import { logDivider, logStage, logSuccess } from './log.js'
@@ -12,8 +13,8 @@ const app = new Hono<{ Bindings: Bindings }>()
 
 app.get('/', (c) =>
   c.json({
-    name: 'pimpp',
-    description: 'Transparent MPP payment proxy for HTTP APIs with pluggable payment methods.',
+    name: getServiceName(c.env),
+    description: getServiceDescription(c.env),
     endpoints: {
       paymentMethod: '/.well-known/payment',
       register: '/register',
@@ -54,7 +55,7 @@ app.post('/register', async (c) => {
     logSuccess('REGISTER', `id=${registered.id} url=${registered.proxiedBaseUrl}`)
     return c.json({
       ...registered,
-      instructions: 'Call one of the proxied URLs. Unpaid requests receive a 402 MPP challenge.',
+      instructions: getRegisterInstructions(c.env),
     })
   } catch (error) {
     return c.json(
@@ -99,3 +100,21 @@ app.all('/p/:id/*', async (c) => {
 })
 
 export default app
+
+function getServiceName(env: Pick<Bindings, 'PIMP_SERVICE_NAME'>) {
+  return parseOptionalString(env.PIMP_SERVICE_NAME, 'pimpp')
+}
+
+function getServiceDescription(env: Pick<Bindings, 'PIMP_SERVICE_DESCRIPTION'>) {
+  return parseOptionalString(
+    env.PIMP_SERVICE_DESCRIPTION,
+    'Transparent MPP payment proxy for HTTP APIs with pluggable payment methods.',
+  )
+}
+
+function getRegisterInstructions(env: Pick<Bindings, 'PIMP_REGISTER_INSTRUCTIONS'>) {
+  return parseOptionalString(
+    env.PIMP_REGISTER_INSTRUCTIONS,
+    'Call one of the proxied URLs. Unpaid requests receive a 402 MPP challenge.',
+  )
+}

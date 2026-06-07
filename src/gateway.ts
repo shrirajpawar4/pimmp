@@ -1,9 +1,10 @@
 import type { Bindings, MppService } from './types.js'
+import { parseOptionalPositiveInteger, parseOptionalUrl } from './config.js'
 import { logStage, logSuccess, logWarn } from './log.js'
 
 const GATEWAY_CACHE_KEY = 'gateway:services:v1'
-const GATEWAY_CACHE_TTL_SECONDS = 3600
-const REGISTRY_URL = 'https://mpp.dev/api/services'
+const DEFAULT_GATEWAY_CACHE_TTL_SECONDS = 3600
+const DEFAULT_REGISTRY_URL = 'https://mpp.dev/api/services'
 
 export async function handleGateway(request: Request, env: Bindings) {
   const url = new URL(request.url)
@@ -52,7 +53,7 @@ export async function handleGateway(request: Request, env: Bindings) {
 }
 
 export async function getGatewayServices(env: Bindings): Promise<MppService[]> {
-  const cached = await env.GATEWAY_CACHE.get(GATEWAY_CACHE_KEY)
+  const cached = await env.GATEWAY_CACHE.get(getGatewayCacheKey(env))
   if (cached) {
     return parseCachedServices(cached)
   }
@@ -61,17 +62,33 @@ export async function getGatewayServices(env: Bindings): Promise<MppService[]> {
 }
 
 export async function refreshGatewayServices(env: Bindings): Promise<MppService[]> {
-  const response = await fetch(REGISTRY_URL)
+  const response = await fetch(getRegistryUrl(env))
   if (!response.ok) {
     throw new Error(`registry fetch failed: ${response.status}`)
   }
 
   const payload = (await response.json()) as { services?: unknown }
   const services = normalizeServices(payload.services)
-  await env.GATEWAY_CACHE.put(GATEWAY_CACHE_KEY, JSON.stringify(services), {
-    expirationTtl: GATEWAY_CACHE_TTL_SECONDS,
+  await env.GATEWAY_CACHE.put(getGatewayCacheKey(env), JSON.stringify(services), {
+    expirationTtl: getGatewayCacheTtlSeconds(env),
   })
   return services
+}
+
+export function getGatewayCacheKey(env: Pick<Bindings, 'GATEWAY_CACHE_KEY'>) {
+  return env.GATEWAY_CACHE_KEY || GATEWAY_CACHE_KEY
+}
+
+export function getRegistryUrl(env: Pick<Bindings, 'MPP_REGISTRY_URL'>) {
+  return parseOptionalUrl(env.MPP_REGISTRY_URL, 'MPP_REGISTRY_URL', DEFAULT_REGISTRY_URL)
+}
+
+export function getGatewayCacheTtlSeconds(env: Pick<Bindings, 'GATEWAY_CACHE_TTL_SECONDS'>) {
+  return parseOptionalPositiveInteger(
+    env.GATEWAY_CACHE_TTL_SECONDS,
+    'GATEWAY_CACHE_TTL_SECONDS',
+    DEFAULT_GATEWAY_CACHE_TTL_SECONDS,
+  )
 }
 
 export function formatLlmsDirectory(services: MppService[], origin: string) {

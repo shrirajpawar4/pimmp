@@ -13,10 +13,47 @@ import {
 
 const CONFIRMATION_POLL_INTERVAL_MS = 1_000
 const CONFIRMATION_POLL_ATTEMPTS = 10
+const CONFIRMATION_BLOCKS = 1
 
 export type UsdcBaseServerOptions = {
+  confirmationBlocks?: number
+  confirmationPollAttempts?: number
+  confirmationPollIntervalMs?: number
   rpcUrl?: string
   verifyTransfer?: VerifyTransferFn
+}
+
+type RpcClient = {
+  getBlockNumber(): Promise<bigint>
+  getTransactionReceipt(parameters: { hash: `0x${string}` }): Promise<{
+    blockNumber: bigint
+    logs: Parameters<typeof receiptMatchesTransfer>[0]['logs']
+    status: 'success' | 'reverted'
+  }>
+}
+
+type VerifyTransferWithRpcParameters = {
+  challengeId: string
+  confirmationBlocks?: number
+  confirmationPollAttempts?: number
+  confirmationPollIntervalMs?: number
+  request: {
+    amount: string
+    currency: 'usdc'
+    recipient: string
+    methodDetails: {
+      chainId: number
+      network: 'base'
+      token: string
+    }
+  }
+  rpcUrl?: string
+  txid: string
+}
+
+type VerifyTransferWithRpcInternals = {
+  client?: RpcClient
+  delay?: (ms: number) => Promise<void>
 }
 
 export function usdcBase(parameters: UsdcBaseServerOptions = {}) {
@@ -28,6 +65,9 @@ export function usdcBase(parameters: UsdcBaseServerOptions = {}) {
         ? await parameters.verifyTransfer({ challengeId, request, txid })
         : await verifyTransferWithRpc({
             challengeId,
+            confirmationBlocks: parameters.confirmationBlocks,
+            confirmationPollAttempts: parameters.confirmationPollAttempts,
+            confirmationPollIntervalMs: parameters.confirmationPollIntervalMs,
             request,
             rpcUrl: parameters.rpcUrl,
             txid,
@@ -47,23 +87,29 @@ export function usdcBase(parameters: UsdcBaseServerOptions = {}) {
   })
 }
 
-export async function verifyTransferWithRpc(parameters: {
-  challengeId: string
-  request: {
-    amount: string
-    currency: 'usdc'
-    recipient: string
-    methodDetails: {
-      chainId: number
-      network: 'base'
-      token: string
-    }
-  }
-  rpcUrl?: string
-  txid: string
-}): Promise<VerifyTransferResult> {
-  const { request, rpcUrl, txid } = parameters
-  if (!rpcUrl) {
+export function verifyTransferWithRpc(
+  parameters: VerifyTransferWithRpcParameters,
+): Promise<VerifyTransferResult>
+export async function verifyTransferWithRpc(
+  parameters: VerifyTransferWithRpcParameters & VerifyTransferWithRpcInternals,
+): Promise<VerifyTransferResult> {
+  const { request, txid } = parameters
+  const confirmationBlocks = parsePositiveIntegerOption(
+    parameters.confirmationBlocks,
+    'confirmationBlocks',
+    CONFIRMATION_BLOCKS,
+  )
+  const confirmationPollAttempts = parsePositiveIntegerOption(
+    parameters.confirmationPollAttempts,
+    'confirmationPollAttempts',
+    CONFIRMATION_POLL_ATTEMPTS,
+  )
+  const confirmationPollIntervalMs = parsePositiveIntegerOption(
+    parameters.confirmationPollIntervalMs,
+    'confirmationPollIntervalMs',
+    CONFIRMATION_POLL_INTERVAL_MS,
+  )
+  if (!parameters.rpcUrl && !parameters.client) {
     throw new Error('rpcUrl is required when verifyTransfer is not provided')
   }
   if (request.methodDetails.chainId !== USDC_BASE_CHAIN_ID) {
@@ -73,10 +119,13 @@ export async function verifyTransferWithRpc(parameters: {
     throw new Error('unsupported token')
   }
 
-  const client = createPublicClient({
-    chain: base,
-    transport: http(rpcUrl),
-  })
+  const client =
+    parameters.client ??
+    createPublicClient({
+      chain: base,
+      transport: http(parameters.rpcUrl),
+    })
+  const wait = parameters.delay ?? delay
 
   const receipt = await client.getTransactionReceipt({ hash: txid as `0x${string}` })
   if (receipt.status !== 'success') {
@@ -84,16 +133,17 @@ export async function verifyTransferWithRpc(parameters: {
   }
 
   let currentBlock = await client.getBlockNumber()
+  const requiredConfirmations = BigInt(confirmationBlocks)
   for (
     let attempt = 0;
-    currentBlock - receipt.blockNumber < 1n && attempt < CONFIRMATION_POLL_ATTEMPTS;
+    currentBlock - receipt.blockNumber < requiredConfirmations && attempt < confirmationPollAttempts;
     attempt += 1
   ) {
-    await delay(CONFIRMATION_POLL_INTERVAL_MS)
+    await wait(confirmationPollIntervalMs)
     currentBlock = await client.getBlockNumber()
   }
 
-  if (currentBlock - receipt.blockNumber < 1n) {
+  if (currentBlock - receipt.blockNumber < requiredConfirmations) {
     return { txid, valid: false }
   }
 
@@ -112,4 +162,16 @@ export async function verifyTransferWithRpc(parameters: {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function parsePositiveIntegerOption(value: number | undefined, name: string, defaultValue: number) {
+  if (value === undefined) {
+    return defaultValue
+  }
+
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`)
+  }
+
+  return value
 }

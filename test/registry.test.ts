@@ -4,6 +4,7 @@ import { getAddress } from 'viem'
 
 import { createDefaultUsdcBasePayment } from '../src/payments/usdc-base.js'
 import {
+  getEndpointIdLength,
   matchRoutePrice,
   normalizePrice,
   normalizeRoutePath,
@@ -15,6 +16,51 @@ describe('registry validation', () => {
   it('normalizes decimal USDC prices to atomic units', () => {
     assert.equal(normalizePrice('0.01'), '10000')
     assert.equal(normalizePrice('1'), '1000000')
+  })
+
+  it('uses configured price bounds', () => {
+    assert.equal(
+      normalizePrice('0.0001', {
+        PIMP_MIN_PRICE_USDC: '0.000001',
+        PIMP_MAX_PRICE_USDC: '0.01',
+      }),
+      '100',
+    )
+    assert.throws(
+      () =>
+        normalizePrice('0.02', {
+          PIMP_MIN_PRICE_USDC: '0.000001',
+          PIMP_MAX_PRICE_USDC: '0.01',
+        }),
+      /priceUsdc must be between 0.000001 and 0.01/,
+    )
+  })
+
+  it('rejects invalid configured price bounds', () => {
+    assert.throws(
+      () =>
+        normalizePrice('0.01', {
+          PIMP_MIN_PRICE_USDC: 'abc',
+        }),
+      /PIMP_MIN_PRICE_USDC must be a decimal USDC amount/,
+    )
+    assert.throws(
+      () =>
+        normalizePrice('0.01', {
+          PIMP_MIN_PRICE_USDC: '2',
+          PIMP_MAX_PRICE_USDC: '1',
+        }),
+      /PIMP_MIN_PRICE_USDC must be less than or equal to PIMP_MAX_PRICE_USDC/,
+    )
+  })
+
+  it('uses configured endpoint id length within limits', () => {
+    assert.equal(getEndpointIdLength({}), 10)
+    assert.equal(getEndpointIdLength({ PIMP_ENDPOINT_ID_LENGTH: '24' }), 24)
+    assert.throws(
+      () => getEndpointIdLength({ PIMP_ENDPOINT_ID_LENGTH: '5' }),
+      /PIMP_ENDPOINT_ID_LENGTH must be between 6 and 64/,
+    )
   })
 
   it('rejects blocked origin hosts', () => {

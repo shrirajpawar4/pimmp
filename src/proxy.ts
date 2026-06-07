@@ -3,7 +3,7 @@ import { Challenge } from 'mppx'
 import { logStage, logSuccess } from './log.js'
 import { getPaymentAdapter } from './payments/index.js'
 import { incrementCallCount, matchRoutePrice, normalizeRoutePath } from './registry.js'
-import { storeChallenge } from './replay.js'
+import { getChallengeTtlSeconds, storeChallenge } from './replay.js'
 import type { Bindings, ChallengeState, PaymentCharge, PimpEndpoint } from './types.js'
 import { createPaymentHandler } from './mpp.js'
 
@@ -33,7 +33,7 @@ export async function handleProxyRequest(
     const challenge = Challenge.fromResponse(result.challenge)
     const expiresAt = challenge.expires
       ? Date.parse(challenge.expires)
-      : Date.now() + 5 * 60 * 1000
+      : Date.now() + getChallengeTtlSeconds(env) * 1000
     logStage(
       'CHALLENGE',
       `issued id=${endpoint.id} challenge=${challenge.id} route=${matchedRoute.path} amount=${matchedRoute.priceAtomic}`,
