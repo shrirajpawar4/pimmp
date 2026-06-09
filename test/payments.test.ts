@@ -6,16 +6,19 @@ import { getAddress } from 'viem'
 import { getPaymentAdapter } from '../src/payments/index.js'
 import { createTempoUsdPayment } from '../src/payments/tempo-usd.js'
 import { createDefaultUsdcBasePayment } from '../src/payments/usdc-base.js'
+import { createWalletOwner } from '../src/registry.js'
 
 describe('payment adapters', () => {
   it('builds the current usdc-base request shape', () => {
     const recipient = getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00')
+    const payment = createDefaultUsdcBasePayment(recipient)
     const endpoint = {
       callCount: 0,
       createdAt: Date.now(),
       id: 'endpoint-1',
       originUrl: 'https://api.example.com',
-      payment: createDefaultUsdcBasePayment(recipient),
+      owner: createWalletOwner(payment),
+      payment,
       routePricesAtomic: {
         '/search': '10000',
       },
@@ -43,16 +46,18 @@ describe('payment adapters', () => {
   it('builds a tempo-usd request with a derived challenge reference strategy', () => {
     const recipient = getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00')
     const token = getAddress('0x1111111111111111111111111111111111111111')
+    const payment = createTempoUsdPayment({
+      chainId: 42431,
+      recipient,
+      token,
+    })
     const endpoint = {
       callCount: 0,
       createdAt: Date.now(),
       id: 'endpoint-2',
       originUrl: 'https://api.example.com',
-      payment: createTempoUsdPayment({
-        chainId: 42431,
-        recipient,
-        token,
-      }),
+      owner: createWalletOwner(payment),
+      payment,
       routePricesAtomic: {
         '/search': '25000',
       },

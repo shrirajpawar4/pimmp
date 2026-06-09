@@ -8,6 +8,7 @@ Register an origin and get back a paid proxy URL:
 npx tsx packages/pimpp-cli/src/cli.ts register \
   http://127.0.0.1:8787 \
   https://api.openai.com/v1 \
+  --destination-wallet 0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00 \
   --template openai \
   --price 0.01 \
   --auth-header authorization="Bearer $OPENAI_API_KEY"
@@ -19,6 +20,7 @@ Set explicit per-route pricing with or without a template:
 npx tsx packages/pimpp-cli/src/cli.ts register \
   http://127.0.0.1:8787 \
   https://api.github.com \
+  --destination-wallet 0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00 \
   --template github-rest \
   --price 0.01 \
   --route /search/issues=0.03 \

@@ -12,6 +12,8 @@ describe('parseRegisterArgs', () => {
       'openai',
       '--price',
       '0.01',
+      '--destination-wallet',
+      '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00',
       '--auth-header',
       'authorization=Bearer secret',
     ])
@@ -25,6 +27,7 @@ describe('parseRegisterArgs', () => {
       name: 'authorization',
       value: 'Bearer secret',
     })
+    assert.equal(parsed.destinationWallet, '0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00')
   })
 
   it('allows explicit route overrides on top of a template', () => {

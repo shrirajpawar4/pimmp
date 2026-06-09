@@ -7,6 +7,7 @@ import { resolvePaymentVerification, validateAndConsumePayment } from '../src/pa
 import { createTempoUsdPayment } from '../src/payments/tempo-usd.js'
 import { createDefaultUsdcBasePayment } from '../src/payments/usdc-base.js'
 import { getPaymentAdapter, usdcBaseAdapter } from '../src/payments/index.js'
+import { createWalletOwner } from '../src/registry.js'
 import { claimTxid, DEFAULT_SPENT_TTL_SECONDS, storeChallenge } from '../src/replay.js'
 import type { Bindings, ChallengeState, LegacyChallengeState, PimpEndpoint } from '../src/types.js'
 
@@ -269,12 +270,14 @@ describe('storeChallenge', () => {
 
 function createEndpoint(overrides: Partial<PimpEndpoint> = {}): PimpEndpoint {
   const recipient = getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00')
+  const payment = createDefaultUsdcBasePayment(recipient)
   return {
     callCount: 0,
     createdAt: 1,
     id: 'endpoint-1',
     originUrl: 'https://api.example.com',
-    payment: createDefaultUsdcBasePayment(recipient),
+    owner: createWalletOwner(payment),
+    payment,
     routePricesAtomic: {
       '/search': '10000',
     },
@@ -311,16 +314,18 @@ function createFreshChallenge(endpoint: PimpEndpoint) {
 function createTempoEndpoint(overrides: Partial<PimpEndpoint> = {}): PimpEndpoint {
   const recipient = getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00')
   const token = getAddress('0x1111111111111111111111111111111111111111')
+  const payment = createTempoUsdPayment({
+    chainId: 42431,
+    recipient,
+    token,
+  })
   return {
     callCount: 0,
     createdAt: 1,
     id: 'endpoint-1',
     originUrl: 'https://api.example.com',
-    payment: createTempoUsdPayment({
-      chainId: 42431,
-      recipient,
-      token,
-    }),
+    owner: createWalletOwner(payment),
+    payment,
     routePricesAtomic: {
       '/search': '10000',
     },

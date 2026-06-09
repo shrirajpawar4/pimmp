@@ -54,6 +54,7 @@ async function main() {
       },
       body: JSON.stringify({
         baseUrl: options.baseUrl,
+        ...(options.destinationWallet ? { destinationWallet: options.destinationWallet } : {}),
         routePricesUsdc: options.routePricesUsdc,
         ...(options.authHeader ? { authHeader: options.authHeader } : {}),
       }),
@@ -89,13 +90,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 export function parseRegisterArgs(args: string[]) {
   if (args.length < 2) {
     throw new Error(
-      `Usage: pimpp register <worker-url> <base-url> [--template ${getTemplateUsageList()}] [--price usdc] [--route path=price] [--auth-header name=value]`,
+      `Usage: pimpp register <worker-url> <base-url> --destination-wallet address [--template ${getTemplateUsageList()}] [--price usdc] [--route path=price] [--auth-header name=value]`,
     )
   }
 
   const [workerUrl, baseUrl, ...rest] = args
   const routePricesUsdc: Record<string, string> = {}
   let authHeader: { name: string; value: string } | undefined
+  let destinationWallet: string | undefined
   let template: string | undefined
   let templatePriceUsdc: string | undefined
 
@@ -104,6 +106,7 @@ export function parseRegisterArgs(args: string[]) {
     const value = rest[index + 1]
     if (
       flag !== '--auth-header' &&
+      flag !== '--destination-wallet' &&
       flag !== '--price' &&
       flag !== '--route' &&
       flag !== '--template'
@@ -119,6 +122,8 @@ export function parseRegisterArgs(args: string[]) {
         throw new Error(`Unknown template: ${value}`)
       }
       template = value
+    } else if (flag === '--destination-wallet') {
+      destinationWallet = value
     } else if (flag === '--price') {
       templatePriceUsdc = value
     } else {
@@ -164,6 +169,7 @@ export function parseRegisterArgs(args: string[]) {
   return {
     authHeader,
     baseUrl,
+    destinationWallet,
     routePricesUsdc,
     workerUrl,
   }
@@ -228,7 +234,7 @@ function usage() {
   return [
     'Usage:',
     '  pimpp request <url> [--method METHOD] [--header name=value] [--body text]',
-    `  pimpp register <worker-url> <base-url> [--template ${getTemplateUsageList()}] [--price usdc] [--route path=price] [--auth-header name=value]`,
+    `  pimpp register <worker-url> <base-url> --destination-wallet address [--template ${getTemplateUsageList()}] [--price usdc] [--route path=price] [--auth-header name=value]`,
     '  pimpp wallet whoami',
   ].join('\n')
 }

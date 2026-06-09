@@ -4,6 +4,8 @@ import { getAddress } from 'viem'
 
 import { createDefaultUsdcBasePayment } from '../src/payments/usdc-base.js'
 import {
+  createWalletOwner,
+  getEndpoint,
   getEndpointIdLength,
   matchRoutePrice,
   normalizePrice,
@@ -84,6 +86,9 @@ describe('registry validation', () => {
   })
 
   it('matches exact route prices and falls back for legacy endpoints', () => {
+    const payment = createDefaultUsdcBasePayment(
+      getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+    )
     assert.deepEqual(
       matchRoutePrice(
         {
@@ -91,9 +96,8 @@ describe('registry validation', () => {
           createdAt: Date.now(),
           id: 'endpoint-1',
           originUrl: 'https://api.example.com',
-          payment: createDefaultUsdcBasePayment(
-            getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
-          ),
+          owner: createWalletOwner(payment),
+          payment,
           routePricesAtomic: {
             '/search': '10000',
             '/summarize': '20000',
@@ -113,9 +117,8 @@ describe('registry validation', () => {
           createdAt: Date.now(),
           id: 'endpoint-2',
           originUrl: 'https://api.example.com',
-          payment: createDefaultUsdcBasePayment(
-            getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
-          ),
+          owner: createWalletOwner(payment),
+          payment,
           priceAtomic: '5000',
           upstreamHeaders: {},
           upstreamQuery: {},
@@ -132,9 +135,8 @@ describe('registry validation', () => {
           createdAt: Date.now(),
           id: 'endpoint-3',
           originUrl: 'https://api.example.com',
-          payment: createDefaultUsdcBasePayment(
-            getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
-          ),
+          owner: createWalletOwner(payment),
+          payment,
           routePricesAtomic: {
             '/search': '10000',
           },
@@ -146,4 +148,55 @@ describe('registry validation', () => {
       null,
     )
   })
+
+  it('hydrates legacy payment records without stored owner metadata', async () => {
+    const recipient = getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00')
+    const payment = createDefaultUsdcBasePayment(recipient)
+    const endpoints = createKvNamespace({
+      'endpoint-1': JSON.stringify({
+        callCount: 0,
+        createdAt: 1,
+        id: 'endpoint-1',
+        originUrl: 'https://api.example.com',
+        payment,
+        routePricesAtomic: {
+          '/search': '10000',
+        },
+      }),
+    })
+
+    const endpoint = await getEndpoint(createEnv(endpoints), 'endpoint-1')
+
+    assert.deepEqual(endpoint?.owner, {
+      type: 'wallet',
+      chainId: payment.chainId,
+      address: recipient,
+    })
+  })
 })
+
+function createEnv(endpoints: KVNamespace) {
+  return {
+    BASE_RPC_URL: 'https://mainnet.base.org',
+    ENDPOINTS: endpoints,
+    GATEWAY_CACHE: endpoints,
+    PIMP_DATA_KEY: btoa('12345678901234567890123456789012'),
+    PIMP_DESTINATION_WALLET: getAddress('0x1111111111111111111111111111111111111111'),
+    PIMP_SECRET: 'secret',
+    UPSTASH_REDIS_REST_TOKEN: 'token',
+    UPSTASH_REDIS_REST_URL: 'https://redis.example.com',
+  } as Parameters<typeof getEndpoint>[0]
+}
+
+function createKvNamespace(initial: Record<string, string> = {}) {
+  const store = new Map(Object.entries(initial))
+
+  return {
+    async get(key: string) {
+      return store.get(key) ?? null
+    },
+    async put(key: string, value: string) {
+      store.set(key, value)
+    },
+  } as unknown as KVNamespace
+}

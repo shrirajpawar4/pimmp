@@ -73,6 +73,7 @@ app.get('/p/:id/status', async (c) => {
     callCount: endpoint.callCount,
     createdAt: endpoint.createdAt,
     originHost: new URL(endpoint.originUrl).host,
+    owner: endpoint.owner,
     payment: {
       chainId: endpoint.payment.chainId,
       currency: endpoint.payment.currency,

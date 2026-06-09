@@ -346,7 +346,19 @@ describe('index routing', () => {
     )
 
     assert.equal(registerResponse.status, 200)
-    const registered = (await registerResponse.json()) as { id: string }
+    const registered = (await registerResponse.json()) as {
+      id: string
+      owner: {
+        type: 'wallet'
+        chainId: number
+        address: string
+      }
+    }
+    assert.deepEqual(registered.owner, {
+      type: 'wallet',
+      chainId: 42431,
+      address: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+    })
     const statusResponse = await app.request(`https://pimpp.dev/p/${registered.id}/status`, {}, env)
 
     assert.equal(statusResponse.status, 200)
@@ -354,6 +366,11 @@ describe('index routing', () => {
       callCount: number
       createdAt: number
       originHost: string
+      owner: {
+        type: 'wallet'
+        chainId: number
+        address: string
+      }
       payment: {
         chainId: number
         currency: string
@@ -369,6 +386,11 @@ describe('index routing', () => {
       callCount: 0,
       createdAt: 0,
       originHost: 'api.example.com',
+      owner: {
+        type: 'wallet',
+        chainId: 42431,
+        address: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+      },
       payment: {
         chainId: 42431,
         currency: 'usd',
@@ -383,11 +405,8 @@ describe('index routing', () => {
     })
   })
 
-  it('returns configured register instructions', async () => {
-    const env = createEnv({
-      PIMP_REGISTER_INSTRUCTIONS: 'Configured payment instructions.',
-    })
-
+  it('rejects registration without a recipient wallet', async () => {
+    const env = createEnv()
     const response = await app.request(
       'https://pimpp.dev/register',
       {
@@ -405,13 +424,40 @@ describe('index routing', () => {
       env,
     )
 
+    assert.equal(response.status, 400)
+    assert.deepEqual(await response.json(), { error: 'destinationWallet is required' })
+  })
+
+  it('returns configured register instructions', async () => {
+    const env = createEnv({
+      PIMP_REGISTER_INSTRUCTIONS: 'Configured payment instructions.',
+    })
+
+    const response = await app.request(
+      'https://pimpp.dev/register',
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          baseUrl: 'https://api.example.com/v1',
+          destinationWallet: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+          routePricesUsdc: {
+            '/search': '0.01',
+          },
+        }),
+      },
+      env,
+    )
+
     assert.equal(response.status, 200)
     const body = (await response.json()) as { instructions: string }
     assert.equal(body.instructions, 'Configured payment instructions.')
   })
 })
 
-function createEnv(overrides: Partial<Bindings>): Bindings {
+function createEnv(overrides: Partial<Bindings> = {}): Bindings {
   return {
     BASE_RPC_URL: 'https://mainnet.base.org',
     ENDPOINTS: createKvNamespace(),

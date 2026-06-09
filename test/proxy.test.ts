@@ -64,6 +64,7 @@ describe('registerEndpoint', () => {
           value: 'Bearer secret',
         },
         baseUrl: 'https://api.example.com/v1',
+        destinationWallet: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
         routePricesUsdc: {
           '/search': '0.01',
           '/summarize': '0.02',
@@ -72,6 +73,11 @@ describe('registerEndpoint', () => {
     )
 
     assert.equal(result.proxiedBaseUrl, `https://pimpp.fun/p/${result.id}`)
+    assert.deepEqual(result.owner, {
+      type: 'wallet',
+      chainId: USDC_BASE_CHAIN_ID,
+      address: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+    })
     assert.deepEqual(result.proxiedRoutes, {
       '/search': `https://pimpp.fun/p/${result.id}/search`,
       '/summarize': `https://pimpp.fun/p/${result.id}/summarize`,
@@ -87,7 +93,43 @@ describe('registerEndpoint', () => {
       chainId: USDC_BASE_CHAIN_ID,
       token: USDC_BASE_ADDRESS,
     })
+    assert.deepEqual(stored.owner, result.owner)
     assert.equal('destinationWallet' in stored, false)
+  })
+
+  it('rejects default usdc-base registration without a destination wallet', async () => {
+    const endpoints = {
+      async get() {
+        return null
+      },
+      async put() {
+        throw new Error('unexpected write')
+      },
+    } as unknown as KVNamespace
+
+    await assert.rejects(
+      () =>
+        registerEndpoint(
+          {
+            BASE_RPC_URL: 'https://mainnet.base.org',
+            ENDPOINTS: endpoints,
+            GATEWAY_CACHE: endpoints,
+            PIMP_DATA_KEY: btoa('12345678901234567890123456789012'),
+            PIMP_DESTINATION_WALLET: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+            PIMP_SECRET: 'secret',
+            UPSTASH_REDIS_REST_TOKEN: 'token',
+            UPSTASH_REDIS_REST_URL: 'https://redis.example.com',
+          } as unknown as Parameters<typeof registerEndpoint>[0],
+          'https://pimpp.fun/register',
+          {
+            baseUrl: 'https://api.example.com/v1',
+            routePricesUsdc: {
+              '/search': '0.01',
+            },
+          },
+        ),
+      /destinationWallet is required/,
+    )
   })
 
   it('stores a tempo-usd payment configuration when provided', async () => {
@@ -128,6 +170,11 @@ describe('registerEndpoint', () => {
     )
 
     assert.equal(result.proxiedBaseUrl, `https://pimpp.fun/p/${result.id}`)
+    assert.deepEqual(result.owner, {
+      type: 'wallet',
+      chainId: 42431,
+      address: getAddress('0x742d35cc6634c0532925a3b844bc9e7595f8fe00'),
+    })
     assert.equal(writes.length, 1)
 
     const stored = JSON.parse(writes[0].value)
@@ -139,6 +186,7 @@ describe('registerEndpoint', () => {
       chainId: 42431,
       token: getAddress('0x1111111111111111111111111111111111111111'),
     })
+    assert.deepEqual(stored.owner, result.owner)
   })
 })
 

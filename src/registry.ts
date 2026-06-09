@@ -9,6 +9,7 @@ import { normalizeUsdcBasePaymentInput } from './payments/usdc-base.js'
 import type {
   Bindings,
   EndpointPaymentConfig,
+  EndpointOwner,
   LegacyStoredEndpoint,
   MatchedRoute,
   PimpEndpoint,
@@ -41,12 +42,14 @@ export async function registerEndpoint(
   const id = nanoid(getEndpointIdLength(env))
   const upstreamHeaders = normalizeUpstreamHeaders(input)
   const payment = normalizeEndpointPayment(env, input)
+  const owner = createWalletOwner(payment)
 
   const stored: StoredEndpoint = {
     callCount: 0,
     createdAt: Date.now(),
     id,
     originUrl: originUrl.toString(),
+    owner,
     payment,
     ...(routePricesAtomic ? { routePricesAtomic } : {}),
     ...(fallbackPriceAtomic ? { priceAtomic: fallbackPriceAtomic } : {}),
@@ -64,6 +67,7 @@ export async function registerEndpoint(
   )
   return {
     id,
+    owner,
     proxiedBaseUrl,
     proxiedRoutes,
     proxiedUrl: proxiedBaseUrl,
@@ -75,9 +79,10 @@ function normalizeEndpointPayment(
   input: RegisterEndpointInput,
 ): EndpointPaymentConfig {
   if (!input.payment) {
-    return createDefaultUsdcBasePayment(
-      validateDestinationWallet(input.destinationWallet ?? env.PIMP_DESTINATION_WALLET),
-    )
+    if (!input.destinationWallet) {
+      throw new Error('destinationWallet is required')
+    }
+    return createDefaultUsdcBasePayment(validateDestinationWallet(input.destinationWallet))
   }
 
   if (input.payment.method === 'tempo-usd') {
@@ -85,6 +90,14 @@ function normalizeEndpointPayment(
   }
 
   return normalizeUsdcBasePaymentInput(input.payment)
+}
+
+export function createWalletOwner(payment: EndpointPaymentConfig): EndpointOwner {
+  return {
+    type: 'wallet',
+    chainId: payment.chainId,
+    address: payment.recipient,
+  }
 }
 
 export async function getEndpoint(env: Bindings, id: string): Promise<PimpEndpoint | null> {
@@ -185,11 +198,13 @@ async function hydrateEndpoint(
   stored: LegacyStoredEndpoint | StoredEndpoint,
 ): Promise<PimpEndpoint> {
   const payment = 'payment' in stored ? stored.payment : createDefaultUsdcBasePayment(stored.destinationWallet)
+  const owner = 'owner' in stored ? stored.owner : createWalletOwner(payment)
   return {
     callCount: stored.callCount,
     createdAt: stored.createdAt,
     id: stored.id,
     originUrl: stored.originUrl,
+    owner,
     payment,
     priceAtomic: stored.priceAtomic,
     routePricesAtomic: stored.routePricesAtomic,

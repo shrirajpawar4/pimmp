@@ -68,6 +68,7 @@ It does not yet support MPP sessions, streamed payments, vouchers, fee sponsorsh
 npx tsx packages/pimpp-cli/src/cli.ts register \
   http://127.0.0.1:8787 \
   https://api.openai.com/v1 \
+  --destination-wallet 0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00 \
   --template openai \
   --price 0.01 \
   --auth-header authorization="Bearer $OPENAI_API_KEY"
@@ -79,6 +80,7 @@ With explicit per-route prices:
 npx tsx packages/pimpp-cli/src/cli.ts register \
   http://127.0.0.1:8787 \
   https://api.github.com \
+  --destination-wallet 0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00 \
   --template github-rest \
   --price 0.01 \
   --route /search/issues=0.03 \
@@ -90,6 +92,11 @@ PIMPP returns a paid proxy base URL plus concrete paid route URLs:
 ```json
 {
   "id": "abc123",
+  "owner": {
+    "type": "wallet",
+    "chainId": 8453,
+    "address": "0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00"
+  },
   "proxiedBaseUrl": "https://pimpp.fun/p/abc123",
   "proxiedRoutes": {
     "/chat/completions": "https://pimpp.fun/p/abc123/chat/completions",
@@ -105,6 +112,7 @@ The `POST /register` body is now:
 ```json
 {
   "baseUrl": "https://api.example.com/v1",
+  "destinationWallet": "0x742d35Cc6634C0532925a3b844Bc9e7595f8fE00",
   "authHeader": {
     "name": "authorization",
     "value": "Bearer secret"
@@ -269,7 +277,7 @@ Core values:
 PIMP_SECRET=                         # required
 PIMP_DATA_KEY=                       # required, base64-encoded 32-byte key
 BASE_RPC_URL=                        # required for usdc-base verification
-PIMP_DESTINATION_WALLET=             # required default usdc-base recipient
+PIMP_DESTINATION_WALLET=             # legacy/local fallback for old endpoint records
 UPSTASH_REDIS_REST_URL=              # required for challenge and replay state
 UPSTASH_REDIS_REST_TOKEN=            # required for challenge and replay state
 TEMPO_RPC_URL=                       # required for tempo-usd verification
@@ -314,6 +322,34 @@ openssl rand -base64 32
 ```bash
 npm run dev
 ```
+
+### CI/CD
+
+GitHub Actions runs typecheck and tests on pull requests and pushes to `main`.
+Pushes to `main` deploy the Worker after checks pass.
+
+Set these GitHub repository secrets before enabling deploys:
+
+```bash
+CLOUDFLARE_ACCOUNT_ID=              # Cloudflare account id
+CLOUDFLARE_API_TOKEN=               # API token allowed to deploy Workers and read/write KV config
+ENDPOINTS_KV_NAMESPACE_ID=          # production ENDPOINTS KV namespace id
+GATEWAY_CACHE_KV_NAMESPACE_ID=      # production GATEWAY_CACHE KV namespace id
+```
+
+Runtime Worker secrets still need to exist in Cloudflare before the deployed Worker can handle traffic:
+
+```bash
+wrangler secret put PIMP_SECRET
+wrangler secret put PIMP_DATA_KEY
+wrangler secret put BASE_RPC_URL
+wrangler secret put UPSTASH_REDIS_REST_URL
+wrangler secret put UPSTASH_REDIS_REST_TOKEN
+wrangler secret put TEMPO_RPC_URL
+wrangler secret put TEMPO_CHAIN_ID
+```
+
+`PIMP_DESTINATION_WALLET` is only a legacy/local fallback for old endpoint records. New registrations must pass `destinationWallet` or structured `payment.recipient`.
 
 ### Checks
 

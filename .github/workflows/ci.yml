@@ -1,4 +1,4 @@
-name: ci
+name: ci-cd
 
 on:
   push:
@@ -17,3 +17,49 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ENDPOINTS_KV_NAMESPACE_ID: ${{ secrets.ENDPOINTS_KV_NAMESPACE_ID }}
+      GATEWAY_CACHE_KV_NAMESPACE_ID: ${{ secrets.GATEWAY_CACHE_KV_NAMESPACE_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Write production Wrangler config
+        run: |
+          node --input-type=module <<'EOF'
+          import { readFileSync, writeFileSync } from 'node:fs'
+
+          const required = [
+            'ENDPOINTS_KV_NAMESPACE_ID',
+            'GATEWAY_CACHE_KV_NAMESPACE_ID',
+          ]
+          for (const name of required) {
+            if (!process.env[name]) {
+              throw new Error(`Missing required secret: ${name}`)
+            }
+          }
+
+          const config = readFileSync('wrangler.toml', 'utf8')
+            .replace(
+              /binding = "ENDPOINTS"\nid = "replace-me"/,
+              `binding = "ENDPOINTS"\nid = "${process.env.ENDPOINTS_KV_NAMESPACE_ID}"`,
+            )
+            .replace(
+              /binding = "GATEWAY_CACHE"\nid = "replace-me"/,
+              `binding = "GATEWAY_CACHE"\nid = "${process.env.GATEWAY_CACHE_KV_NAMESPACE_ID}"`,
+            )
+
+          writeFileSync('wrangler.toml', config)
+          EOF
+      - run: npm run deploy

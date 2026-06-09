@@ -33,6 +33,12 @@ export type TempoUsdPaymentConfig = {
 
 export type EndpointPaymentConfig = TempoUsdPaymentConfig | UsdcBasePaymentConfig
 
+export type EndpointOwner = {
+  type: 'wallet'
+  chainId: number
+  address: string
+}
+
 export type RegisterEndpointPaymentInput =
   | {
       method: 'usdc-base'
@@ -53,6 +59,7 @@ export type StoredEndpoint = {
   createdAt: number
   id: string
   originUrl: string
+  owner: EndpointOwner
   payment: EndpointPaymentConfig
   priceAtomic?: string
   routePricesAtomic?: Record<string, string>
@@ -77,6 +84,7 @@ export type PimpEndpoint = {
   createdAt: number
   id: string
   originUrl: string
+  owner: EndpointOwner
   payment: EndpointPaymentConfig
   priceAtomic?: string
   routePricesAtomic?: Record<string, string>
@@ -102,6 +110,7 @@ export type RegisterEndpointInput = {
 
 export type RegisterEndpointResult = {
   id: string
+  owner: EndpointOwner
   proxiedBaseUrl: string
   proxiedRoutes: Record<string, string>
   proxiedUrl: string
